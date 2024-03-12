@@ -1,0 +1,43 @@
+
+\begin{tabular}{@{}lcccccccccccccccccccccccccc@{}}
+    \toprule
+    \multicolumn{1}{c}{\multirow{2}{*}{\textbf{Model}}} & \multicolumn{1}{c}{\multirow{2}{*}{decoupled?}}
+    &  & \multicolumn{6}{c}{$|\mathcal{P}|$ = 10}
+    &  & \multicolumn{6}{c}{$|\mathcal{P}|$ = 15}
+    &  & \multicolumn{6}{c}{$|\mathcal{P}|$ = 20} \\ \cmidrule(l){4-23}
+    \multicolumn{1}{c}{}  & \multicolumn{1}{c}{}
+    &
+    & $\textsc{F}_{\textsc{CD} - \textsc{Rec}}$
+    & \multicolumn{1}{c}{$\textsc{A}_{\textsc{CD} - \textsc{Rec}}$}
+    & $\textsc{F}_{\textsc{CD} - \textsc{Real}}$
+    & \multicolumn{1}{c}{$\textsc{A}_{\textsc{CD} - \textsc{Real}}$}
+    & \multicolumn{1}{c}{$\textsc{F}_{\mathcal{L}_2}$}
+    & \multicolumn{1}{c}{$\textsc{A}_{\mathcal{L}_2}$}
+    &
+    & $\textsc{F}_{\textsc{CD} - \textsc{Rec}}$
+    & \multicolumn{1}{c}{$\textsc{A}_{\textsc{CD} - \textsc{Rec}}$}
+    & $\textsc{F}_{\textsc{CD} - \textsc{Real}}$
+    & \multicolumn{1}{c}{$\textsc{A}_{\textsc{CD} - \textsc{Real}}$}
+    & \multicolumn{1}{c}{$\textsc{F}_{\mathcal{L}_2}$}
+    & \multicolumn{1}{c}{$\textsc{A}_{\mathcal{L}_2}$}
+    &
+    & $\textsc{F}_{\textsc{CD} - \textsc{Rec}}$
+    & \multicolumn{1}{c}{$\textsc{A}_{\textsc{CD} - \textsc{Rec}}$}
+    & $\textsc{F}_{\textsc{CD} - \textsc{Real}}$
+    & \multicolumn{1}{c}{$\textsc{A}_{\textsc{CD} - \textsc{Real}}$}
+    & \multicolumn{1}{c}{$\textsc{F}_{\mathcal{L}_2}$}
+    & \multicolumn{1}{c}{$\textsc{A}_{\mathcal{L}_2}$} \\ \midrule
+$\textsc{LateFusion}_{1024}$& \multicolumn{1}{c}{\icono}    & & 1.751 & \multicolumn{1}{c}{1.431} & \multicolumn{1}{c}{3.006} & \multicolumn{1}{c}{2.756} & \multicolumn{1}{c}{1.913} & \multicolumn{1}{c}{1.707}    & & 2.150 & \multicolumn{1}{c}{1.579} & \multicolumn{1}{c}{2.941} & \multicolumn{1}{c}{2.925} & \multicolumn{1}{c}{1.366} & \multicolumn{1}{c}{1.241}    & & 1.591 & \multicolumn{1}{c}{0.944} & \multicolumn{1}{c}{2.620} & \multicolumn{1}{c}{2.182} & \multicolumn{1}{c}{1.054} & \multicolumn{1}{c}{\textbf{0.805}}\\
+$\textsc{LateFusion}_{512}$& \multicolumn{1}{c}{\icono}    & & 1.802 & \multicolumn{1}{c}{1.413} & \multicolumn{1}{c}{3.031} & \multicolumn{1}{c}{2.801} & \multicolumn{1}{c}{2.018} & \multicolumn{1}{c}{1.770}    & & 1.804 & \multicolumn{1}{c}{1.469} & \multicolumn{1}{c}{2.824} & \multicolumn{1}{c}{2.755} & \multicolumn{1}{c}{1.309} & \multicolumn{1}{c}{1.221}    & & 1.414 & \multicolumn{1}{c}{1.005} & \multicolumn{1}{c}{2.301} & \multicolumn{1}{c}{2.272} & \multicolumn{1}{c}{1.059} & \multicolumn{1}{c}{0.880}\\
+$\textsc{LateFusion}_{256}$& \multicolumn{1}{c}{\icono}    & & 1.807 & \multicolumn{1}{c}{1.486} & \multicolumn{1}{c}{3.026} & \multicolumn{1}{c}{2.928} & \multicolumn{1}{c}{2.079} & \multicolumn{1}{c}{1.810}    & & 2.034 & \multicolumn{1}{c}{1.380} & \multicolumn{1}{c}{2.852} & \multicolumn{1}{c}{2.718} & \multicolumn{1}{c}{1.342} & \multicolumn{1}{c}{1.203}    & & 1.737 & \multicolumn{1}{c}{1.018} & \multicolumn{1}{c}{2.743} & \multicolumn{1}{c}{2.306} & \multicolumn{1}{c}{1.106} & \multicolumn{1}{c}{0.838}\\
+$\textsc{Ours}_{512 \times 8}$& \multicolumn{1}{c}{\icono}    & & 2.240 & \multicolumn{1}{c}{1.665} & \multicolumn{1}{c}{3.680} & \multicolumn{1}{c}{3.169} & \multicolumn{1}{c}{2.311} & \multicolumn{1}{c}{2.022}    & & 2.471 & \multicolumn{1}{c}{1.664} & \multicolumn{1}{c}{3.347} & \multicolumn{1}{c}{2.956} & \multicolumn{1}{c}{1.591} & \multicolumn{1}{c}{1.351}    & & 1.571 & \multicolumn{1}{c}{0.992} & \multicolumn{1}{c}{2.599} & \multicolumn{1}{c}{2.341} & \multicolumn{1}{c}{1.207} & \multicolumn{1}{c}{0.937}\\
+$\textsc{Ours}_{512 \times 4}$& \multicolumn{1}{c}{\icono}    & & 1.751 & \multicolumn{1}{c}{1.494} & \multicolumn{1}{c}{3.236} & \multicolumn{1}{c}{2.859} & \multicolumn{1}{c}{2.168} & \multicolumn{1}{c}{1.884}    & & 2.378 & \multicolumn{1}{c}{1.540} & \multicolumn{1}{c}{3.098} & \multicolumn{1}{c}{2.850} & \multicolumn{1}{c}{1.432} & \multicolumn{1}{c}{1.271}    & & 1.659 & \multicolumn{1}{c}{1.087} & \multicolumn{1}{c}{2.636} & \multicolumn{1}{c}{2.401} & \multicolumn{1}{c}{1.166} & \multicolumn{1}{c}{0.898}\\
+\arrayrulecolor{black!30}\midrule\arrayrulecolor{black!100}
+$\textsc{LateFusion}_{1024}$& \multicolumn{1}{c}{\icoyes}    & & 1.773 & \multicolumn{1}{c}{1.452} & \multicolumn{1}{c}{3.066} & \multicolumn{1}{c}{2.794} & \multicolumn{1}{c}{2.002} & \multicolumn{1}{c}{1.734}    & & 1.704 & \multicolumn{1}{c}{1.290} & \multicolumn{1}{c}{2.787} & \multicolumn{1}{c}{2.667} & \multicolumn{1}{c}{\textbf{1.212}} & \multicolumn{1}{c}{\textbf{1.184}}    & & 1.502 & \multicolumn{1}{c}{1.049} & \multicolumn{1}{c}{2.279} & \multicolumn{1}{c}{2.242} & \multicolumn{1}{c}{\textbf{0.999}} & \multicolumn{1}{c}{0.817}\\
+$\textsc{LateFusion}_{512}$& \multicolumn{1}{c}{\icoyes}    & & 1.687 & \multicolumn{1}{c}{1.430} & \multicolumn{1}{c}{\textbf{2.694}} & \multicolumn{1}{c}{\textbf{2.698}} & \multicolumn{1}{c}{\textbf{1.883}} & \multicolumn{1}{c}{\textbf{1.672}}    & & 1.978 & \multicolumn{1}{c}{1.328} & \multicolumn{1}{c}{3.089} & \multicolumn{1}{c}{2.749} & \multicolumn{1}{c}{1.300} & \multicolumn{1}{c}{1.190}    & & 2.149 & \multicolumn{1}{c}{1.307} & \multicolumn{1}{c}{3.224} & \multicolumn{1}{c}{2.676} & \multicolumn{1}{c}{1.170} & \multicolumn{1}{c}{0.900}\\
+$\textsc{LateFusion}_{256}$& \multicolumn{1}{c}{\icoyes}    & & 2.057 & \multicolumn{1}{c}{1.555} & \multicolumn{1}{c}{3.071} & \multicolumn{1}{c}{2.824} & \multicolumn{1}{c}{2.043} & \multicolumn{1}{c}{1.743}    & & 2.306 & \multicolumn{1}{c}{1.630} & \multicolumn{1}{c}{3.342} & \multicolumn{1}{c}{2.987} & \multicolumn{1}{c}{1.443} & \multicolumn{1}{c}{1.305}    & & 2.397 & \multicolumn{1}{c}{1.394} & \multicolumn{1}{c}{3.514} & \multicolumn{1}{c}{2.734} & \multicolumn{1}{c}{1.170} & \multicolumn{1}{c}{0.923}\\
+$\textsc{Ours}_{512 \times 8}$& \multicolumn{1}{c}{\icoyes}    & & 1.827 & \multicolumn{1}{c}{1.358} & \multicolumn{1}{c}{3.243} & \multicolumn{1}{c}{2.858} & \multicolumn{1}{c}{2.097} & \multicolumn{1}{c}{1.809}    & & 1.982 & \multicolumn{1}{c}{1.331} & \multicolumn{1}{c}{2.918} & \multicolumn{1}{c}{2.679} & \multicolumn{1}{c}{1.359} & \multicolumn{1}{c}{1.234}    & & \textbf{1.331} & \multicolumn{1}{c}{\textbf{0.865}} & \multicolumn{1}{c}{\textbf{2.187}} & \multicolumn{1}{c}{2.214} & \multicolumn{1}{c}{1.035} & \multicolumn{1}{c}{0.826}\\
+$\textsc{Ours}_{512 \times 4}$& \multicolumn{1}{c}{\icoyes}    & & \textbf{1.647} & \multicolumn{1}{c}{\textbf{1.348}} & \multicolumn{1}{c}{3.028} & \multicolumn{1}{c}{2.826} & \multicolumn{1}{c}{1.961} & \multicolumn{1}{c}{1.765}    & & \textbf{1.698} & \multicolumn{1}{c}{\textbf{1.240}} & \multicolumn{1}{c}{\textbf{2.713}} & \multicolumn{1}{c}{\textbf{2.582}} & \multicolumn{1}{c}{1.328} & \multicolumn{1}{c}{1.211}    & & 1.450 & \multicolumn{1}{c}{0.884} & \multicolumn{1}{c}{2.268} & \multicolumn{1}{c}{\textbf{2.163}} & \multicolumn{1}{c}{1.053} & \multicolumn{1}{c}{0.821}\\
+
+    \bottomrule
+\end{tabular}%

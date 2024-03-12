@@ -1,0 +1,44 @@
+
+\begin{tabular}{@{}lllccccccc@{}}
+    \toprule
+    \multicolumn{1}{c}{\multirow{2}{*}{\textbf{Model}}} & \multicolumn{1}{c}{\multirow{2}{*}{decoupled?}} & \multicolumn{1}{c}{} & \multicolumn{6}{c}{Averaged $\ \forall |\mathcal{P}|$} \\  \cmidrule(l){4-9} 
+    \multicolumn{1}{c}{} & \multicolumn{1}{c}{}
+    & & $\textsc{F}_{\textsc{CD} - \textsc{Rec}}$
+    & $\textsc{A}_{\textsc{CD} - \textsc{Rec}}$
+    & $\textsc{F}_{\textsc{CD} - \textsc{Real}}$
+    & $\textsc{A}_{\textsc{CD} - \textsc{Real}}$
+    & $\textsc{F}_{\mathcal{L}_2}$ & $\textsc{A}_{\mathcal{L}_2}$ \\ \midrule
+
+$\textsc{LateFusion}_{1024}$
+& \multicolumn{1}{c}{\icono}    & & 1.831 & 1.318 & 2.856 & 2.621 & 1.444 & 1.251\\
+
+$\textsc{LateFusion}_{512}$
+& \multicolumn{1}{c}{\icono}    & & 1.673 & 1.296 & 2.719 & 2.609 & 1.462 & 1.290\\
+
+$\textsc{LateFusion}_{256}$
+& \multicolumn{1}{c}{\icono}    & & 1.859 & 1.295 & 2.874 & 2.651 & 1.509 & 1.283\\
+
+$\textsc{Ours}_{512 \times 8}$
+& \multicolumn{1}{c}{\icono}    & & 2.094 & 1.440 & 3.208 & 2.822 & 1.703 & 1.437\\
+
+$\textsc{Ours}_{512 \times 4}$
+& \multicolumn{1}{c}{\icono}    & & 1.929 & 1.373 & 2.990 & 2.703 & 1.589 & 1.351\\
+\arrayrulecolor{black!30}\midrule\arrayrulecolor{black!100}
+
+$\textsc{LateFusion}_{1024}$
+& \multicolumn{1}{c}{\icoyes}    & & 1.660 & 1.264 & 2.711 & 2.568 & \textbf{1.405} & \textbf{1.245}\\
+
+$\textsc{LateFusion}_{512}$
+& \multicolumn{1}{c}{\icoyes}    & & 1.938 & 1.355 & 3.002 & 2.708 & 1.451 & 1.254\\
+
+$\textsc{LateFusion}_{256}$
+& \multicolumn{1}{c}{\icoyes}    & & 2.253 & 1.526 & 3.309 & 2.848 & 1.552 & 1.324\\
+
+$\textsc{Ours}_{512 \times 8}$
+& \multicolumn{1}{c}{\icoyes}    & & 1.714 & 1.185 & 2.782 & 2.584 & 1.497 & 1.290\\
+
+$\textsc{Ours}_{512 \times 4}$
+& \multicolumn{1}{c}{\icoyes}    & & \textbf{1.598} & \textbf{1.157} & \textbf{2.670} & \textbf{2.524} & 1.447 & 1.266\\
+
+\bottomrule
+\end{tabular}%

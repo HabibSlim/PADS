@@ -1,0 +1,56 @@
+
+\begin{tabular}{@{}lcccccccccccccccccccccccccc@{}}
+    \toprule
+    \multicolumn{1}{c}{\multirow{2}{*}{\textbf{Model}}} & \multicolumn{1}{c}{\multirow{2}{*}{decoupled?}}
+    &  & \multicolumn{6}{c}{$|\mathcal{P}|$ = 10}
+    &  & \multicolumn{6}{c}{$|\mathcal{P}|$ = 15}
+    &  & \multicolumn{6}{c}{$|\mathcal{P}|$ = 20} \\ \cmidrule(l){4-23}
+    \multicolumn{1}{c}{}  & \multicolumn{1}{c}{}
+    &
+    & $\textsc{F}_{\textsc{CD} - \textsc{Rec}}$
+    & \multicolumn{1}{c}{$\textsc{A}_{\textsc{CD} - \textsc{Rec}}$}
+    & $\textsc{F}_{\textsc{CD} - \textsc{Real}}$
+    & \multicolumn{1}{c}{$\textsc{A}_{\textsc{CD} - \textsc{Real}}$}
+    & \multicolumn{1}{c}{$\textsc{F}_{\mathcal{L}_2}$}
+    & \multicolumn{1}{c}{$\textsc{A}_{\mathcal{L}_2}$}
+    &
+    & $\textsc{F}_{\textsc{CD} - \textsc{Rec}}$
+    & \multicolumn{1}{c}{$\textsc{A}_{\textsc{CD} - \textsc{Rec}}$}
+    & $\textsc{F}_{\textsc{CD} - \textsc{Real}}$
+    & \multicolumn{1}{c}{$\textsc{A}_{\textsc{CD} - \textsc{Real}}$}
+    & \multicolumn{1}{c}{$\textsc{F}_{\mathcal{L}_2}$}
+    & \multicolumn{1}{c}{$\textsc{A}_{\mathcal{L}_2}$}
+    &
+    & $\textsc{F}_{\textsc{CD} - \textsc{Rec}}$
+    & \multicolumn{1}{c}{$\textsc{A}_{\textsc{CD} - \textsc{Rec}}$}
+    & $\textsc{F}_{\textsc{CD} - \textsc{Real}}$
+    & \multicolumn{1}{c}{$\textsc{A}_{\textsc{CD} - \textsc{Real}}$}
+    & \multicolumn{1}{c}{$\textsc{F}_{\mathcal{L}_2}$}
+    & \multicolumn{1}{c}{$\textsc{A}_{\mathcal{L}_2}$} \\ \midrule
+
+$\textsc{LateFusion}_{1024}$
+& \multicolumn{1}{c}{\icoyes}    & & 1.773 & \multicolumn{1}{c}{1.452} & \multicolumn{1}{c}{3.066} & \multicolumn{1}{c}{2.794} & \multicolumn{1}{c}{2.002} & \multicolumn{1}{c}{1.734}    & & 1.704 & \multicolumn{1}{c}{1.290} & \multicolumn{1}{c}{2.787} & \multicolumn{1}{c}{2.667} & \multicolumn{1}{c}{1.212} & \multicolumn{1}{c}{1.184}    & & 1.502 & \multicolumn{1}{c}{1.049} & \multicolumn{1}{c}{2.279} & \multicolumn{1}{c}{2.242} & \multicolumn{1}{c}{0.999} & \multicolumn{1}{c}{0.817}\\
+$\ \ +\ \mathbb{O}\ \textsc{Magnitude}$
+& \multicolumn{1}{c}{\icoyes}    & & 1.118 & \multicolumn{1}{c}{0.941} & \multicolumn{1}{c}{2.323} & \multicolumn{1}{c}{2.242} & \multicolumn{1}{c}{1.592} & \multicolumn{1}{c}{1.437}    & & 1.037 & \multicolumn{1}{c}{0.910} & \multicolumn{1}{c}{2.106} & \multicolumn{1}{c}{2.142} & \multicolumn{1}{c}{0.978} & \multicolumn{1}{c}{0.996}    & & 0.608 & \multicolumn{1}{c}{0.631} & \multicolumn{1}{c}{1.442} & \multicolumn{1}{c}{1.892} & \multicolumn{1}{c}{0.784} & \multicolumn{1}{c}{0.714}\\
+$\ \ +\ \mathbb{O}\ \textsc{Direction}$
+& \multicolumn{1}{c}{\icoyes}    & & 0.688 & \multicolumn{1}{c}{0.360} & \multicolumn{1}{c}{2.109} & \multicolumn{1}{c}{2.054} & \multicolumn{1}{c}{0.822} & \multicolumn{1}{c}{0.551}    & & 0.360 & \multicolumn{1}{c}{0.279} & \multicolumn{1}{c}{1.903} & \multicolumn{1}{c}{1.944} & \multicolumn{1}{c}{0.410} & \multicolumn{1}{c}{0.329}    & & 0.137 & \multicolumn{1}{c}{0.341} & \multicolumn{1}{c}{1.358} & \multicolumn{1}{c}{1.747} & \multicolumn{1}{c}{0.207} & \multicolumn{1}{c}{0.316}\\
+\arrayrulecolor{black!30}\midrule\arrayrulecolor{black!100}
+
+$\textsc{LateFusion}_{512}$
+& \multicolumn{1}{c}{\icoyes}    & & 1.687 & \multicolumn{1}{c}{1.430} & \multicolumn{1}{c}{2.694} & \multicolumn{1}{c}{2.698} & \multicolumn{1}{c}{1.883} & \multicolumn{1}{c}{1.672}    & & 1.978 & \multicolumn{1}{c}{1.328} & \multicolumn{1}{c}{3.089} & \multicolumn{1}{c}{2.749} & \multicolumn{1}{c}{1.300} & \multicolumn{1}{c}{1.190}    & & 2.149 & \multicolumn{1}{c}{1.307} & \multicolumn{1}{c}{3.224} & \multicolumn{1}{c}{2.676} & \multicolumn{1}{c}{1.170} & \multicolumn{1}{c}{0.900}\\
+$\ \ +\ \mathbb{O}\ \textsc{Magnitude}$
+& \multicolumn{1}{c}{\icoyes}    & & 1.206 & \multicolumn{1}{c}{1.017} & \multicolumn{1}{c}{2.328} & \multicolumn{1}{c}{2.300} & \multicolumn{1}{c}{1.628} & \multicolumn{1}{c}{1.445}    & & 1.192 & \multicolumn{1}{c}{1.015} & \multicolumn{1}{c}{2.241} & \multicolumn{1}{c}{2.311} & \multicolumn{1}{c}{1.027} & \multicolumn{1}{c}{1.027}    & & 0.777 & \multicolumn{1}{c}{0.762} & \multicolumn{1}{c}{1.727} & \multicolumn{1}{c}{2.039} & \multicolumn{1}{c}{0.816} & \multicolumn{1}{c}{0.731}\\
+$\ \ +\ \mathbb{O}\ \textsc{Direction}$
+& \multicolumn{1}{c}{\icoyes}    & & 0.699 & \multicolumn{1}{c}{0.386} & \multicolumn{1}{c}{2.136} & \multicolumn{1}{c}{2.082} & \multicolumn{1}{c}{0.805} & \multicolumn{1}{c}{0.561}    & & 0.507 & \multicolumn{1}{c}{0.356} & \multicolumn{1}{c}{2.134} & \multicolumn{1}{c}{2.020} & \multicolumn{1}{c}{0.500} & \multicolumn{1}{c}{0.384}    & & 0.094 & \multicolumn{1}{c}{0.345} & \multicolumn{1}{c}{1.347} & \multicolumn{1}{c}{1.776} & \multicolumn{1}{c}{0.172} & \multicolumn{1}{c}{0.319}\\
+\arrayrulecolor{black!30}\midrule\arrayrulecolor{black!100}
+
+$\textsc{LateFusion}_{256}$
+& \multicolumn{1}{c}{\icoyes}    & & 2.057 & \multicolumn{1}{c}{1.555} & \multicolumn{1}{c}{3.071} & \multicolumn{1}{c}{2.824} & \multicolumn{1}{c}{2.043} & \multicolumn{1}{c}{1.743}    & & 2.306 & \multicolumn{1}{c}{1.630} & \multicolumn{1}{c}{3.342} & \multicolumn{1}{c}{2.987} & \multicolumn{1}{c}{1.443} & \multicolumn{1}{c}{1.305}    & & 2.397 & \multicolumn{1}{c}{1.394} & \multicolumn{1}{c}{3.514} & \multicolumn{1}{c}{2.734} & \multicolumn{1}{c}{1.170} & \multicolumn{1}{c}{0.923}\\
+$\ \ +\ \mathbb{O}\ \textsc{Magnitude}$
+& \multicolumn{1}{c}{\icoyes}    & & 1.150 & \multicolumn{1}{c}{0.952} & \multicolumn{1}{c}{2.337} & \multicolumn{1}{c}{2.280} & \multicolumn{1}{c}{1.636} & \multicolumn{1}{c}{1.457}    & & 1.272 & \multicolumn{1}{c}{1.104} & \multicolumn{1}{c}{2.477} & \multicolumn{1}{c}{2.429} & \multicolumn{1}{c}{1.159} & \multicolumn{1}{c}{1.085}    & & 0.684 & \multicolumn{1}{c}{0.734} & \multicolumn{1}{c}{1.583} & \multicolumn{1}{c}{2.072} & \multicolumn{1}{c}{0.770} & \multicolumn{1}{c}{0.736}\\
+$\ \ +\ \mathbb{O}\ \textsc{Direction}$
+& \multicolumn{1}{c}{\icoyes}    & & 0.719 & \multicolumn{1}{c}{0.423} & \multicolumn{1}{c}{2.185} & \multicolumn{1}{c}{2.108} & \multicolumn{1}{c}{0.846} & \multicolumn{1}{c}{0.610}    & & 0.747 & \multicolumn{1}{c}{0.449} & \multicolumn{1}{c}{2.267} & \multicolumn{1}{c}{2.112} & \multicolumn{1}{c}{0.695} & \multicolumn{1}{c}{0.468}    & & 0.267 & \multicolumn{1}{c}{0.463} & \multicolumn{1}{c}{1.422} & \multicolumn{1}{c}{1.804} & \multicolumn{1}{c}{0.309} & \multicolumn{1}{c}{0.402}\\
+
+
+    \bottomrule
+\end{tabular}%

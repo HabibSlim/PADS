@@ -1,0 +1,165 @@
+WARNING:torch.distributed.run:
+*****************************************
+Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+*****************************************
+| distributed init (rank 0): env://, gpu 0
+| distributed init (rank 1): env://, gpu 1
+[17:24:30.073575] Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. This will slightly alter validation results as extra duplicate entries are added to achieve equal num of samples per-process.
+[17:24:30.074711] Input args:
+ {
+    "accum_iter": 4,
+    "ae": "kl_d512_m512_l8",
+    "ae_pth": "output/graph_edit/ae/ae_m512.pth",
+    "batch_size": 8,
+    "blr": 0.0001,
+    "clip_grad": null,
+    "data_path": "/ibex/user/slimhy/ShapeWalk/",
+    "dataset": "graphedits",
+    "debug_mode": true,
+    "debug_with_forward": true,
+    "device": "cuda",
+    "dist_backend": "nccl",
+    "dist_eval": true,
+    "dist_on_itp": false,
+    "dist_url": "env://",
+    "distributed": true,
+    "epochs": 800,
+    "eval": false,
+    "exp_name": "ldm_scratch_debug_01",
+    "gpu": 0,
+    "layer_decay": 0.75,
+    "local_rank": -1,
+    "log_dir": "output/graph_edit/dm/ldm_scratch_debug_01",
+    "lr": 0.0001,
+    "max_edge_level": 1,
+    "min_lr": 1e-06,
+    "model": "kl_d512_m512_l8_d24_edm",
+    "num_workers": 8,
+    "output_dir": "output/graph_edit/dm/ldm_scratch_debug_01",
+    "pin_mem": true,
+    "point_cloud_size": 2048,
+    "rank": 0,
+    "resume": "output/graph_edit/dm/ldm_scratch_01/checkpoint-50.pth",
+    "resume_full_weights": true,
+    "resume_weights": false,
+    "seed": 0,
+    "start_epoch": 0,
+    "text_model_name": "bert-base-uncased",
+    "use_clip": false,
+    "warmup_epochs": 40,
+    "weight_decay": 0.05,
+    "world_size": 2
+}
+[17:24:30.075715] Job dir: /ibex/user/slimhy/Shape2VecSet/code
+[17:24:30.076603] |Train| size = [65848]
+[17:24:30.076961] |Valid| size = [421]
+[17:24:30.908488] Loading autoencoder output/graph_edit/ae/ae_m512.pth
+[17:24:35.166666] Model = EDMTextCond(
+  (edm_model): EDMPrecond(
+    (model): LatentArrayTransformer(
+      (proj_in): Linear(in_features=8, out_features=512, bias=False)
+      (transformer_blocks): ModuleList(
+        (0-23): 24 x BasicTransformerBlock(
+          (attn1): CrossAttention(
+            (to_q): Linear(in_features=512, out_features=512, bias=False)
+            (to_k): Linear(in_features=512, out_features=512, bias=False)
+            (to_v): Linear(in_features=512, out_features=512, bias=False)
+            (to_out): Sequential(
+              (0): Linear(in_features=512, out_features=512, bias=True)
+              (1): Dropout(p=0.0, inplace=False)
+            )
+          )
+          (ff): FeedForward(
+            (net): Sequential(
+              (0): GEGLU(
+                (proj): Linear(in_features=512, out_features=4096, bias=True)
+              )
+              (1): Dropout(p=0.0, inplace=False)
+              (2): Linear(in_features=2048, out_features=512, bias=True)
+            )
+          )
+          (attn2): CrossAttention(
+            (to_q): Linear(in_features=512, out_features=512, bias=False)
+            (to_k): Linear(in_features=512, out_features=512, bias=False)
+            (to_v): Linear(in_features=512, out_features=512, bias=False)
+            (to_out): Sequential(
+              (0): Linear(in_features=512, out_features=512, bias=True)
+              (1): Dropout(p=0.0, inplace=False)
+            )
+          )
+          (norm1): AdaLayerNorm(
+            (silu): SiLU()
+            (linear): Linear(in_features=512, out_features=1024, bias=True)
+            (layernorm): LayerNorm((512,), eps=1e-05, elementwise_affine=False)
+          )
+          (norm2): AdaLayerNorm(
+            (silu): SiLU()
+            (linear): Linear(in_features=512, out_features=1024, bias=True)
+            (layernorm): LayerNorm((512,), eps=1e-05, elementwise_affine=False)
+          )
+          (norm3): AdaLayerNorm(
+            (silu): SiLU()
+            (linear): Linear(in_features=512, out_features=1024, bias=True)
+            (layernorm): LayerNorm((512,), eps=1e-05, elementwise_affine=False)
+          )
+          (ls1): Identity()
+          (drop_path1): Identity()
+          (ls2): Identity()
+          (drop_path2): Identity()
+          (ls3): Identity()
+          (drop_path3): Identity()
+        )
+      )
+      (norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (proj_out): Linear(in_features=512, out_features=8, bias=False)
+      (map_noise): PositionalEmbedding()
+      (map_layer0): Linear(in_features=256, out_features=512, bias=True)
+      (map_layer1): Linear(in_features=512, out_features=512, bias=True)
+    )
+    (category_emb): Embedding(55, 512)
+  )
+  (linear_proj): Linear(in_features=768, out_features=512, bias=True)
+)
+[17:24:35.167455] Params (M): 164.61
+wandb: Currently logged in as: habib-slim (shapewalk). Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.15.12
+wandb: Run data is saved locally in /ibex/user/slimhy/Shape2VecSet/wandb/run-20231101_172436-g6s9873y
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run ldm_scratch_debug_01__4shcjaoh
+wandb: ⭐️ View project at https://wandb.ai/shapewalk/shape2vecset
+wandb: 🚀 View run at https://wandb.ai/shapewalk/shape2vecset/runs/g6s9873y
+[17:24:41.433263] Model params:
+ {
+    "accum_iter": 4,
+    "base_blr": 0.0001,
+    "batch_size": 8,
+    "clip_grad": null,
+    "dist_eval": true,
+    "eff_batch_size": 64,
+    "epochs": 800,
+    "eval": false,
+    "layer_decay": 0.75,
+    "lr": 0.0001,
+    "max_edge_level": 1,
+    "min_lr": 1e-06,
+    "model": "kl_d512_m512_l8_d24_edm",
+    "point_cloud_size": 2048,
+    "resume": "output/graph_edit/dm/ldm_scratch_01/checkpoint-50.pth",
+    "resume_full_weights": true,
+    "start_epoch": 0,
+    "weight_decay": 0.05
+}
+[17:24:42.581434] Resume checkpoint output/graph_edit/dm/ldm_scratch_01/checkpoint-50.pth
+[17:24:43.677310] With optim & sched!
+[17:24:43.730089] Loaded full EDM wrapper + DM weights from checkpoint.
+[17:24:43.742190] Start training for 800 epochs
+[17:24:45.811602] Linear projection unchanged!
+[17:24:45.813351] Transformer weight unchanged!
+[17:24:45.815763] Epoch: [51]  [   0/8231]  eta: 4:43:23  lr: 0.000100  loss: 15.4588 (15.4588)  time: 2.0658  data: 0.6066  max mem: 10927
+[17:25:29.095777] Linear projection changed by 1.4869279861450195
+[17:25:29.097989] Transformer weight changed by 0.11132576316595078
+[17:25:29.100276] Epoch: [51]  [  50/8231]  eta: 2:01:14  lr: 0.000100  loss: 85.9507 (218.7333)  time: 0.8649  data: 0.0004  max mem: 11552
+[17:26:12.487486] Linear projection changed by 2.474356174468994
+[17:26:12.489690] Transformer weight changed by 0.18263670802116394
+[17:26:12.492401] Epoch: [51]  [ 100/8231]  eta: 1:59:03  lr: 0.000100  loss: 99.1053 (344.5992)  time: 0.8694  data: 0.0004  max mem: 11552
+slurmstepd: error: *** JOB 29139833 ON dgpu609-14 CANCELLED AT 2023-11-01T17:26:22 ***
