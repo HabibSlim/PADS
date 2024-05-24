@@ -3,14 +3,11 @@
 #SBATCH --nodes=1
 #SBATCH --partition=batch
 #SBATCH --nodes=1
-#SBATCH --cpus-per-gpu=4
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:v100:1
 #SBATCH --job-name=jupyter_nb
 #SBATCH --mail-type=ALL
-#SBATCH --mem=128G
-#SBATCH --output=slurm/jupyter-nb.out
-#SBATCH --error=slurm/jupyter-nb.err 
-#SBATCH --account conf-cvpr-2023.11.17-elhosemh
+#SBATCH --output=out/jupyter-nb.out
+#SBATCH --error=out/jupyter-nb.err 
  
 # Load environment which has Jupyter installed. It can be one of the following:
 # - Machine Learning module installed on the system (module load machine_learning)

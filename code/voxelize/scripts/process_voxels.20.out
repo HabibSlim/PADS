@@ -1,0 +1,56 @@
+Running process 160
+Running process 161
+Running process 162
+Running process 163
+Running process 164
+Running process 165
+Running process 166
+Running process 167
+Process ID: 163
+Starting processing of 39 files...
+Process ID: 164
+Starting processing of 39 files...
+Process ID: 162
+Starting processing of 39 files...
+Process ID: 161
+Starting processing of 39 files...
+Process ID: 166
+Starting processing of 39 files...
+Process ID: 160
+Starting processing of 39 files...
+Process ID: 165
+Starting processing of 39 files...
+Process ID: 167
+Starting processing of 39 files...
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 164]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 160]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 165]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 161]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 163]
+Finished JIT compiling
+Processed 0/39 files [proc: 166]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 162]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 167]
+All done!
+All done!
+All done!
+All done!
+All done!
+All done!
+All done!
+All done!

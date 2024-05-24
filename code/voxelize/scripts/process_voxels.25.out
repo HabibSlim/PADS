@@ -1,0 +1,56 @@
+Running process 200
+Running process 201
+Running process 202
+Running process 203
+Running process 204
+Running process 205
+Running process 206
+Running process 207
+Process ID: 207
+Starting processing of 39 files...
+Process ID: 201
+Starting processing of 39 files...
+Process ID: 203
+Starting processing of 39 files...
+Process ID: 200
+Starting processing of 39 files...
+Process ID: 205
+Starting processing of 39 files...
+Process ID: 204
+Starting processing of 39 files...
+Process ID: 202
+Starting processing of 39 files...
+Process ID: 206
+Starting processing of 39 files...
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 201]
+Finished JIT compiling
+Processed 0/39 files [proc: 200]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 207]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 204]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 202]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 205]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 203]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 206]
+All done!
+All done!
+All done!
+All done!
+All done!
+All done!
+All done!
+All done!

@@ -1,0 +1,56 @@
+Running process 48
+Running process 49
+Running process 50
+Running process 51
+Running process 52
+Running process 53
+Running process 54
+Running process 55
+Process ID: 51
+Starting processing of 39 files...
+Process ID: 55
+Starting processing of 39 files...
+Process ID: 52
+Starting processing of 39 files...
+Process ID: 49
+Starting processing of 39 files...
+Process ID: 53
+Starting processing of 39 files...
+Process ID: 54
+Starting processing of 39 files...
+Process ID: 50
+Starting processing of 39 files...
+Process ID: 48
+Starting processing of 39 files...
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 51]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 53]
+Finished JIT compiling
+Processed 0/39 files [proc: 54]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 55]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 50]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 52]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 48]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 49]
+All done!
+All done!
+All done!
+All done!
+All done!
+All done!
+All done!
+All done!

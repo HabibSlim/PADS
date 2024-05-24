@@ -1,0 +1,56 @@
+Running process 224
+Running process 225
+Running process 226
+Running process 227
+Running process 228
+Running process 229
+Running process 230
+Running process 231
+Process ID: 228
+Starting processing of 39 files...
+Process ID: 224
+Starting processing of 39 files...
+Process ID: 230
+Starting processing of 39 files...
+Process ID: 229
+Starting processing of 39 files...
+Process ID: 231
+Starting processing of 39 files...
+Process ID: 227
+Starting processing of 39 files...
+Process ID: 225
+Starting processing of 39 files...
+Process ID: 226
+Starting processing of 39 files...
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 228]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 230]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 225]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 224]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 229]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 226]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 227]
+JIT compiling flood fill routine from sources... (can take a while on the first run)
+Finished JIT compiling
+Processed 0/39 files [proc: 231]
+All done!
+All done!
+All done!
+All done!
+All done!
+All done!
+All done!
+All done!

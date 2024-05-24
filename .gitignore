@@ -1,0 +1,10 @@
+data/
+data/**
+dgcm/
+dgcm/** */
+__pycache__/
+__pycache__/**
+slurm/
+slurm/**
+ckpt/
+ckpt/**

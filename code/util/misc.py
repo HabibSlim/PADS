@@ -450,3 +450,24 @@ def all_reduce_mean(x):
         return x_reduce.item()
     else:
         return x
+
+
+def set_all_seeds(seed, use_rank=True):
+    """
+    Set all random seeds for reproducibility.
+    """
+    if use_rank:
+        base_rank = get_rank()
+    torch.manual_seed(seed + base_rank)
+    torch.cuda.manual_seed_all(seed + base_rank)
+    torch.cuda.manual_seed(seed + base_rank)
+    # torch.backends.cudnn.deterministic = True
+    # torch.backends.cudnn.benchmark = False
+    import numpy as np
+
+    np.random.seed(seed)
+
+    import random
+
+    random.seed(seed)
+    print("Set seed to %d" % seed)
