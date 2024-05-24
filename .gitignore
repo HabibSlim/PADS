@@ -8,3 +8,6 @@ slurm/
 slurm/**
 ckpt/
 ckpt/**
+*.sh
+*.err
+*.out
