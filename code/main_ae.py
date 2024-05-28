@@ -1,6 +1,7 @@
 """
 Main training script for the autoencoder.
 """
+
 import argparse
 import datetime
 import json

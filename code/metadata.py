@@ -5,6 +5,7 @@ Defining all the ShapeNet class synsets as a dictionary.
 import numpy as np
 
 
+# ShapeNet synsets
 SHAPENET_CLASSES = {
     "airplane": "02691156",
     "bag": "02773838",
@@ -59,6 +60,7 @@ SHAPENET_CLASSES = {
     "washer": "04554684",
 }
 
+# 3DCoMPaT class codes
 COMPAT_CLASSES = {
     "airplane": 0,
     "bag": 1,
@@ -79,20 +81,31 @@ COMPAT_CLASSES = {
 }
 
 
+def int_to_hex(i):
+    """
+    Convert integer to hex string for 3DCoMPaT classes.
+    """
+    return str(hex(i)[2:].zfill(2))
+
+
 def flip_yz(pc):
-    # if t.shape[0] == 3:
-    #     return t[[0, 2, 1]]
+    """
+    Flip Y and Z axis.
+    """
     return pc[:, [0, 2, 1]]
 
 
 def flip_zx(pc):
-    # if t.shape[0] == 3:
-    #     return t[[2, 1, 0]]
-    # Flip Z and X axes, and invert X axis
+    """
+    Flip Z and X axis.
+    """
     return pc[:, [2, 1, 0]]
 
 
 def flip_airplane(pc):
+    """
+    Rotate 180° around Y axis.
+    """
     full_transform = np.array(
         [[-0.0, -1.0, -0.0], [0.0, 0.0, 1.0], [-1.0, -0.0, -0.0]]
     ).astype(np.float32)
@@ -133,10 +146,6 @@ def flip_car(pc):
     ).astype(np.float32)
     pc = np.dot(pc, full_transform)
     return pc
-
-
-def identity(t):
-    return t
 
 
 # Map compat classes to transformations

@@ -1,6 +1,7 @@
 """
 Compute evaluation metrics.
 """
+
 import point_cloud_utils as pcu
 import numpy as np
 import torch
@@ -52,11 +53,21 @@ def l2_dist(x_gt, x_edited):
     return torch.norm(x_edited - x_gt, p=2)
 
 
-def chamfer_reconstructed(p_gt, p_edited):
+def chamfer_reconstructed(pc_gt, pc_pred):
     """
     Compute the chamfer distance between the reconstructed edited and gt pointclouds.
     """
-    return chamfer_loss(p_edited, p_gt, reduction="mean").mean()
+    return chamfer_loss(pc_gt, pc_pred, reduction="mean").mean()
+
+
+def iou_occupancies(pred_occ, gt_occ):
+    """
+    Compute the IoU between predicted and ground-truth occupancy vectors.
+    """
+    iou = (np.logical_and(pred_occ, gt_occ).sum() + 1e-5) / (
+        np.logical_or(pred_occ, gt_occ).sum() + 1e-5
+    )
+    return iou
 
 
 def chamfer_real__single(

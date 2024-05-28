@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --partition=batch
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:v100:1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --job-name=jupyter_nb
 #SBATCH --mail-type=ALL
 #SBATCH --output=out/jupyter-nb.out

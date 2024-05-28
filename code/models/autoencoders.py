@@ -1,6 +1,7 @@
 """
 Autoencoder models for point clouds.
 """
+
 from functools import wraps
 
 import numpy as np
@@ -232,7 +233,7 @@ class AutoEncoder(nn.Module):
         heads=8,
         dim_head=64,
         weight_tie_layers=False,
-        decoder_ff=False
+        decoder_ff=False,
     ):
         super().__init__()
 
@@ -353,7 +354,7 @@ class KLAutoEncoder(nn.Module):
         heads=8,
         dim_head=64,
         weight_tie_layers=False,
-        decoder_ff=False
+        decoder_ff=False,
     ):
         super().__init__()
 
