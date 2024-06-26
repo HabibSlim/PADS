@@ -25,7 +25,7 @@ module load cuda/12.2
 #conda activate $ENV_PREFIX
 
 source /home/slimhy/conda/bin/activate
-conda activate shape2vecset
+conda activate 3D2VS_flexicubes
 
 # setup ssh tunneling
 # get tunneling info 

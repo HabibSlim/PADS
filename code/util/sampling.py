@@ -3,7 +3,7 @@ Pointcloud sampling utilities.
 """
 
 import torch
-import numpy as np
+import trimesh
 
 
 def face_areas_normals(vertices, faces):
@@ -21,23 +21,20 @@ def face_areas_normals(vertices, faces):
     return face_areas, face_normals
 
 
-def sample_surface(vertices, faces, num_points):
+def sample_surface_tpp(mesh, num_points, device="cuda"):
     """
     Sample points on the surface of a mesh using Triangle Point Picking.
+    CUDA-compatible sampling method.
 
     sample method:
     http://mathworld.wolfram.com/TrianglePointPicking.html
-    Args
-    ---------
-    vertices: vertices
-    faces: triangle faces (torch.long)
-    num_points: number of samples in the final point cloud
-    Return
-    ---------
-    samples: (count, 3) points in space on the surface of mesh
     """
+    vertices, faces = mesh.vertices, mesh.faces
     vertices = vertices.reshape(1, vertices.shape[0], vertices.shape[1])
     N = vertices.shape[0]
+
+    vertices = torch.tensor(vertices).float().to(device)
+    faces = torch.tensor(faces).long().to(device)
 
     weights, normal = face_areas_normals(vertices, faces)
     weights_sum = torch.sum(weights, dim=1)
@@ -81,6 +78,14 @@ def sample_surface(vertices, faces, num_points):
     return samples[0]
 
 
+def sample_surface_trimesh(mesh, num_points):
+    """
+    Sample mesh surface evenly using trimesh.
+    """
+    pc_sampled, _ = trimesh.sample.sample_surface_even(mesh, num_points)
+    return pc_sampled
+
+
 def normalize_point_cloud(point_cloud, use_center_of_bounding_box=True):
     """
     Normalize the point cloud to be in the range [-1, 1] and centered at the origin.
@@ -99,30 +104,3 @@ def normalize_point_cloud(point_cloud, use_center_of_bounding_box=True):
     dist = torch.max(torch.sqrt(torch.sum((point_cloud**2), dim=1)))
     point_cloud = point_cloud / dist  # scale the point cloud
     return point_cloud
-
-
-def sample_pc_random(
-    vertices,
-    faces,
-    num_points=10_000,
-    apply_point_cloud_normalization=False,
-    check_normalize=True,
-) -> np.ndarray:
-    """
-    Chamfer evaluation
-    """
-    vertices = vertices.reshape(1, vertices.shape[0], vertices.shape[1])
-    vertices = torch.from_numpy(vertices)
-    faces = torch.from_numpy(faces)
-    point_cloud = sample_surface(faces, vertices, num_points=num_points)
-    if apply_point_cloud_normalization:
-        point_cloud = normalize_point_cloud(point_cloud)
-    # assert that the point cloud is normalized
-    max_dist_in_pc = torch.max(torch.sqrt(torch.sum((point_cloud**2), dim=1)))
-    threshold = 0.1
-
-    if check_normalize:
-        assert (
-            abs(1.0 - max_dist_in_pc) <= threshold
-        ), f"Mesh is not normalized, max distance in PC was [{abs(1.0 - max_dist_in_pc)}] but required to be <= [{threshold}]."
-    return point_cloud.numpy()

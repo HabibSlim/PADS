@@ -237,6 +237,15 @@ def is_main_process():
     return get_rank() == 0
 
 
+def d_T(tensor):
+    """
+    Detach and transfer tensor to CPU.
+    """
+    if isinstance(tensor, torch.Tensor):
+        return tensor.detach().cpu().numpy()
+    return tensor
+
+
 def save_on_master(*args, **kwargs):
     if is_main_process():
         torch.save(*args, **kwargs)

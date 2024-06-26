@@ -8,7 +8,7 @@ import numpy as np
 import torch
 import fast_simplification
 from functools import partial
-from eval.sampling_util import sample_surface
+from util.sampling import sample_surface_tpp, sample_surface_trimesh
 from voxelize.preprocess import robust_pcu_to_manifold
 from metadata import COMPAT_CLASSES, int_to_hex
 from util.contains.inside_mesh import is_inside
@@ -33,16 +33,15 @@ def safe_sample_surface(mesh, num_points, sample_method="triangle_point_picking"
     Sample points on the mesh surface. Guarantee that the number of points is num_points.
     """
     if sample_method == "triangle_point_picking":
-        vertices = torch.from_numpy(mesh.vertices)
-        faces = torch.from_numpy(mesh.faces)
-        return np.array(sample_surface(vertices, faces, num_points).squeeze())
+        return sample_surface_tpp(mesh, num_points)
     elif sample_method == "trimesh":
-        points, _ = trimesh.sample.sample_surface_even(mesh, num_points)
+        points = sample_surface_trimesh(mesh, num_points)
         if len(points) < num_points:
             # Resample points
-            new_points, _ = trimesh.sample.sample_surface_even(mesh, num_points)
+            new_points = sample_surface_trimesh(mesh, num_points)
             points = np.concatenate([points, new_points[: num_points - len(points)]])
             np.random.shuffle(points)
+            points = torch.tensor(points).float().cuda()
         return points
 
 
@@ -53,7 +52,8 @@ def sample_volume(
     Randomly sample points in the unit cube.
     Return occupancies for the input mesh.
     """
-    points = np.random.rand(num_points, 3) * 2 - 1
+    points = torch.randn(num_points, 3) * 2 - 1
+    points = points.cuda()
 
     if get_occ:
         contains = is_inside(mesh, points, hash_resolution, contain_method)
@@ -67,7 +67,7 @@ def sample_surface_simple(mesh, num_points, get_occ=True):
     """
     points = safe_sample_surface(mesh, num_points)
     if get_occ:
-        return points, np.ones(num_points)
+        return points, torch.ones(num_points)
     return points
 
 
@@ -84,7 +84,7 @@ def sample_near_surface(
     """
     points = safe_sample_surface(mesh, num_points)
     # Add noise to the points
-    points += np.random.randn(num_points, 3) * noise_std
+    points += torch.randn(num_points, 3).cuda() * noise_std
     contains = is_inside(mesh, points, hash_resolution, contain_method)
 
     return points, contains
@@ -99,7 +99,7 @@ def combine_samplings(mesh, num_points, sampling_fns):
         p, o = sampling_fn(mesh, num_points // len(sampling_fns), get_occ=True)
         points.append(p)
         occs.append(o)
-    return np.concatenate(points), np.concatenate(occs)
+    return torch.cat(points), torch.cat(occs)
 
 
 def normalize_pc(point_cloud, use_center_of_bounding_box=True):
@@ -237,18 +237,11 @@ class SingleManifoldDataset:
                 all_points += [points]
                 all_occs += [occs]
             print()
-            # all_points = np.concatenate(all_points)
-            # all_occs = np.concatenate(all_occs)
-            # point_idx = list(range(self.n_points))
             points_idx = list(range(len(all_points)))
 
         # Resample the mesh
         for _ in range(self.max_it):
             if self.sample_first:
-                # Shuffle the indices
-                # np.random.shuffle(point_idx)
-                # points = all_points[point_idx[: self.n_points]]
-                # occs = all_occs[point_idx[: self.n_points]]
                 rnd_idx = np.random.choice(points_idx)
                 points = all_points[rnd_idx]
                 occs = all_occs[rnd_idx]
