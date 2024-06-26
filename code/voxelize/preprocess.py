@@ -8,6 +8,7 @@ import os
 import torch
 import trimesh
 import numpy as np
+import point_cloud_utils as pcu
 from scipy.ndimage import zoom
 from .flood_fill.fill_voxels import fill_inside_voxels_cpu
 
@@ -206,13 +207,25 @@ def center_voxels(voxels):
     return centered_voxels
 
 
-def mesh_to_manifold(obj_model, out_file):
+def mesh_to_manifold(obj_model, out_file, depth=8, extra_params=""):
     """
     Convert the input mesh to a manifold mesh.
     """
     os.system(
-        "%s/manifold --input %s --output %s --depth 8" % (BIN_PATH, obj_model, out_file)
+        "%s/manifold --input %s --output %s --depth %d %s"
+        % (BIN_PATH, obj_model, out_file, depth, extra_params)
     )
+
+
+def robust_pcu_to_manifold(obj_model, out_file, resolution=100_000):
+    """
+    Robust version of ManifoldPlus with lessened fidelity.
+    """
+    obj = trimesh.load_mesh(obj_model)
+    v, f = obj.vertices, obj.faces
+    vw, fw = pcu.make_mesh_watertight(v, f, resolution)
+    new_obj = trimesh.Trimesh(vw, fw)
+    new_obj.export(out_file)
 
 
 def process_mesh(obj_model, out_path, out_path_vox, flood_fill=False):

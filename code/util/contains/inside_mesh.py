@@ -1,14 +1,31 @@
 """
-Test if points are inside a mesh.
+Test if points are inside a mesh using various methods.
 """
 
 import numpy as np
+import point_cloud_utils as pcu
 from .triangle_hash import TriangleHash as _TriangleHash
 
 
-def check_mesh_contains(mesh, points, hash_resolution=512):
-    intersector = MeshIntersector(mesh, hash_resolution)
-    contains = intersector.query(points)
+def is_inside(mesh, points, hash_resolution=512, query_method="occnets"):
+    """
+    Check if points are inside the mesh.
+    """
+    QUERY_METHODS = ["occnets", "trimesh", "pcu"]
+    if query_method not in QUERY_METHODS:
+        raise ValueError(f"query_method must be one of {QUERY_METHODS}")
+
+    if query_method == "occnets":
+        intersector = MeshIntersector(mesh, hash_resolution)
+        contains = intersector.query(points)
+    elif query_method == "trimesh":
+        # Use trimesh to check if points are inside the mesh
+        contains = mesh.contains(points)
+    elif query_method == "pcu":
+        v, f = mesh.vertices, mesh.faces
+        sdf, fid, bc = pcu.signed_distance_to_mesh(points, v, f)
+        contains = sdf < 0
+
     return contains
 
 

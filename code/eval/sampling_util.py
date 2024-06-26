@@ -1,17 +1,18 @@
 """
 Pointcloud sampling utilities.
 """
+
 import torch
 import numpy as np
 
 
-def face_areas_normals(faces, vs):
+def face_areas_normals(vertices, faces):
     """
     Get face areas and normals for a batch of meshes.
     """
     face_normals = torch.cross(
-        vs[:, faces[:, 1], :] - vs[:, faces[:, 0], :],
-        vs[:, faces[:, 2], :] - vs[:, faces[:, 1], :],
+        vertices[:, faces[:, 1], :] - vertices[:, faces[:, 0], :],
+        vertices[:, faces[:, 2], :] - vertices[:, faces[:, 1], :],
         dim=2,
     )
     face_areas = torch.norm(face_normals, dim=2)
@@ -20,9 +21,9 @@ def face_areas_normals(faces, vs):
     return face_areas, face_normals
 
 
-def sample_surface(faces, vertices, num_points=1000):
+def sample_surface(vertices, faces, num_points):
     """
-    Sample points on the surface of a mesh.
+    Sample points on the surface of a mesh using Triangle Point Picking.
 
     sample method:
     http://mathworld.wolfram.com/TrianglePointPicking.html
@@ -34,10 +35,11 @@ def sample_surface(faces, vertices, num_points=1000):
     Return
     ---------
     samples: (count, 3) points in space on the surface of mesh
-    normals: (count, 3) corresponding face normals for points
     """
-    bsize, nvs, _ = vertices.shape
-    weights, normal = face_areas_normals(faces, vertices)
+    vertices = vertices.reshape(1, vertices.shape[0], vertices.shape[1])
+    N = vertices.shape[0]
+
+    weights, normal = face_areas_normals(vertices, faces)
     weights_sum = torch.sum(weights, dim=1)
     dist = torch.distributions.categorical.Categorical(
         probs=weights / weights_sum[:, None]
@@ -47,13 +49,13 @@ def sample_surface(faces, vertices, num_points=1000):
     # pull triangles into the form of an origin + 2 vectors
     tri_origins = vertices[:, faces[:, 0], :]
     tri_vectors = vertices[:, faces[:, 1:], :].clone()
-    tri_vectors -= tri_origins.repeat(1, 1, 2).reshape((bsize, len(faces), 2, 3))
+    tri_vectors -= tri_origins.repeat(1, 1, 2).reshape((N, len(faces), 2, 3))
 
     # pull the vectors for the faces we are going to sample from
     face_index = face_index.transpose(0, 1)
-    face_index = face_index[:, :, None].expand((bsize, num_points, 3))
+    face_index = face_index[:, :, None].expand((N, num_points, 3))
     tri_origins = torch.gather(tri_origins, dim=1, index=face_index)
-    face_index2 = face_index[:, :, None, :].expand((bsize, num_points, 2, 3))
+    face_index2 = face_index[:, :, None, :].expand((N, num_points, 2, 3))
     tri_vectors = torch.gather(tri_vectors, dim=1, index=face_index2)
 
     # randomly generate two 0-1 scalar components to multiply edge vectors by
@@ -76,9 +78,6 @@ def sample_surface(faces, vertices, num_points=1000):
     # (n,3) points in space on the triangle
     samples = sample_vector + tri_origins
 
-    # normals = torch.gather(normal, dim=1, index=face_index)
-
-    # return samples, normals
     return samples[0]
 
 

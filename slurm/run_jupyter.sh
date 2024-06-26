@@ -1,14 +1,14 @@
 #!/bin/bash --login
-#SBATCH --time=10:00:00
+#SBATCH --time=20:00:00
 #SBATCH --nodes=1
+#SBATCH --mem=128G
 #SBATCH --partition=batch
-#SBATCH --nodes=1
 #SBATCH --gres=gpu:a100:1
 #SBATCH --job-name=jupyter_nb
 #SBATCH --mail-type=ALL
 #SBATCH --output=out/jupyter-nb.out
 #SBATCH --error=out/jupyter-nb.err 
- 
+
 # Load environment which has Jupyter installed. It can be one of the following:
 # - Machine Learning module installed on the system (module load machine_learning)
 # - your own conda environment on Ibex
@@ -19,6 +19,7 @@ module purge
 
 # You can use the machine learning module 
 module load machine_learning/2023.01
+module load cuda/12.2
 # or you can activate the conda environment directly by uncommenting the following lines
 #export ENV_PREFIX=$PWD/env
 #conda activate $ENV_PREFIX
