@@ -4,12 +4,6 @@ Compute evaluation metrics.
 
 import numpy as np
 import torch
-from losses.chamfer import chamfer_loss
-
-
-"""
-Defining all metrics.
-"""
 
 
 def l2_dist(x_gt, x_edited):
@@ -19,11 +13,34 @@ def l2_dist(x_gt, x_edited):
     return torch.norm(x_edited - x_gt, p=2)
 
 
-def chamfer_reconstructed(pc_gt, pc_pred):
+@torch.inference_mode()
+def chamfer_distance(a, b):
     """
-    Compute the chamfer distance between the reconstructed edited and gt pointclouds.
+    Compute the chamfer distance between two point clouds.
     """
-    return chamfer_loss(pc_gt, pc_pred, reduction="mean").mean()
+    x, y = a, b
+    bs, num_points, points_dim = x.size()
+    xx = torch.bmm(x, x.transpose(2, 1))
+    yy = torch.bmm(y, y.transpose(2, 1))
+    zz = torch.bmm(x, y.transpose(2, 1))
+    diag_ind = torch.arange(0, num_points).to(a).long()
+    rx = xx[:, diag_ind, diag_ind].unsqueeze(1).expand_as(xx)
+    ry = yy[:, diag_ind, diag_ind].unsqueeze(1).expand_as(yy)
+    P = rx.transpose(2, 1) + ry - 2 * zz
+    return P.min(1)[0].mean(), P.min(2)[0].mean()
+
+
+@torch.inference_mode()
+def chamfer_distance_1D(a, b):
+    """
+    Compute the unidirectional chamfer distance from point cloud a to point cloud b.
+    """
+    x, y = a.unsqueeze(0), b.unsqueeze(0)
+    xx = torch.sum(x**2, dim=2, keepdim=True)
+    yy = torch.sum(y**2, dim=2, keepdim=True).transpose(1, 2)
+    zz = torch.bmm(x, y.transpose(2, 1))
+    P = xx + yy - 2 * zz
+    return P.min(1)[0].mean()
 
 
 def iou_occupancies(pred_occ, gt_occ):

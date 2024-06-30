@@ -334,7 +334,6 @@ class AutoEncoder(nn.Module):
 
     def forward(self, pc, queries):
         x = self.encode(pc)
-
         o = self.decode(x, queries).squeeze(-1)
 
         return {"logits": o}

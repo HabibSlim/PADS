@@ -5,8 +5,11 @@ import time
 from collections import defaultdict, deque
 from pathlib import Path
 
+import cProfile
+import pstats
 import torch
 import torch.distributed as dist
+import trimesh
 from torch import inf
 
 
@@ -213,6 +216,63 @@ def setup_for_distributed(is_master):
     builtins.print = print
 
 
+"""
+Basic benchmarking methods.
+"""
+LAST_TIME = 0.0
+BENCHMARK = False
+
+
+def toggle_benchmarking():
+    global BENCHMARK
+    BENCHMARK = not BENCHMARK
+    print("Benchmarking is now [%s]." % ("on" if BENCHMARK else "off"))
+
+
+def timer_init(section_name):
+    if not BENCHMARK:
+        return
+    global LAST_TIME
+    LAST_TIME = time.time()
+    print("Starting [%s]..." % section_name)
+
+
+def timer_end():
+    if not BENCHMARK:
+        return
+    global LAST_TIME
+    print("Done. Elapsed time: %.2f" % (time.time() - LAST_TIME))
+
+
+def profile_func(function_wrapper, exp_name):
+    with cProfile.Profile() as pr:
+        function_wrapper()
+
+    stats = pstats.Stats(pr)
+    stats.sort_stats(pstats.SortKey.TIME)
+    filename = "%s.prof" % exp_name
+    stats.dump_stats(filename=filename)
+    print("Dumped profile to [%s]." % filename)
+
+
+def show_side_by_side(mesh_a, mesh_b, mesh_c):
+    """
+    Show a triplet of meshes side by side.
+    """
+    # Clone the meshes
+    mesh_a = mesh_a.copy()
+    mesh_b = mesh_b.copy()
+    mesh_c = mesh_c.copy()
+
+    # Translate a to the left, b to the right
+    mesh_a.apply_translation([-1, 0, 0])
+    mesh_c.apply_translation([1.0, 0, 0])
+
+    # Combine them into a single scene
+    scene = trimesh.Scene([mesh_a, mesh_b, mesh_c])
+    return scene.show()
+
+
 def is_dist_avail_and_initialized():
     if not dist.is_available():
         return False
@@ -237,12 +297,21 @@ def is_main_process():
     return get_rank() == 0
 
 
-def d_T(tensor):
+def d_CPU(tensor):
     """
-    Detach and transfer tensor to CPU.
+    Detach, clone and transfer tensor to CPU.
     """
     if isinstance(tensor, torch.Tensor):
-        return tensor.detach().cpu().numpy()
+        return tensor.detach().clone().cpu()
+    return tensor
+
+
+def d_GPU(tensor):
+    """
+    Detach, clone and transfer tensor to GPU.
+    """
+    if isinstance(tensor, torch.Tensor):
+        return tensor.detach().clone().cuda()
     return tensor
 
 
