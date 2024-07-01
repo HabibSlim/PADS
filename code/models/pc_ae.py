@@ -1,13 +1,13 @@
 """
 PC-AE utility functions for loading the pretrained model.
 """
+
 import argparse
 import json
 import os.path as osp
 
 import torch
 import warnings
-import pprint
 
 from models.mlp import MLP
 from models.point_net import PointNet
