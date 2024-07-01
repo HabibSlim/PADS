@@ -12,9 +12,7 @@ def is_inside(mesh, points, hash_resolution=512, query_method="occnets"):
     """
     Check if points are inside the mesh.
     """
-    QUERY_METHODS = ["occnets", "trimesh", "pcu"]
-    if query_method not in QUERY_METHODS:
-        raise ValueError(f"query_method must be one of {QUERY_METHODS}")
+    assert query_method in ["occnets", "trimesh", "pcu"], "Invalid query method"
 
     points = points.squeeze()
 

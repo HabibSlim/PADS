@@ -32,6 +32,10 @@ def safe_sample_surface(mesh, num_points, sample_method="triangle_point_picking"
     """
     Sample points on the mesh surface. Guarantee that the number of points is num_points.
     """
+    assert sample_method in [
+        "triangle_point_picking",
+        "trimesh",
+    ], "Invalid sampling method"
     if sample_method == "triangle_point_picking":
         return sample_surface_tpp(mesh, num_points)
     elif sample_method == "trimesh":

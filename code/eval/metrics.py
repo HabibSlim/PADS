@@ -3,6 +3,7 @@ Compute evaluation metrics.
 """
 
 import numpy as np
+import kaolin
 import torch
 
 
@@ -14,20 +15,36 @@ def l2_dist(x_gt, x_edited):
 
 
 @torch.inference_mode()
-def chamfer_distance(a, b):
+def chamfer_distance(a, b, backend="kaolin"):
     """
     Compute the chamfer distance between two point clouds.
     """
-    x, y = a, b
-    bs, num_points, points_dim = x.size()
-    xx = torch.bmm(x, x.transpose(2, 1))
-    yy = torch.bmm(y, y.transpose(2, 1))
-    zz = torch.bmm(x, y.transpose(2, 1))
-    diag_ind = torch.arange(0, num_points).to(a).long()
-    rx = xx[:, diag_ind, diag_ind].unsqueeze(1).expand_as(xx)
-    ry = yy[:, diag_ind, diag_ind].unsqueeze(1).expand_as(yy)
-    P = rx.transpose(2, 1) + ry - 2 * zz
-    return P.min(1)[0].mean(), P.min(2)[0].mean()
+    assert backend in ["kaolin", "torch"], "Invalid backend"
+    if backend == "kaolin":
+        x, y = a.unsqueeze(0), b.unsqueeze(0)
+        return kaolin.metrics.pointcloud.chamfer_distance(x, y)
+    elif backend == "torch":
+        x, y = a, b
+        bs, num_points, points_dim = x.size()
+        xx = torch.bmm(x, x.transpose(2, 1))
+        yy = torch.bmm(y, y.transpose(2, 1))
+        zz = torch.bmm(x, y.transpose(2, 1))
+        diag_ind = torch.arange(0, num_points).to(a).long()
+        rx = xx[:, diag_ind, diag_ind].unsqueeze(1).expand_as(xx)
+        ry = yy[:, diag_ind, diag_ind].unsqueeze(1).expand_as(yy)
+        P = rx.transpose(2, 1) + ry - 2 * zz
+        return P.min(1)[0].mean(), P.min(2)[0].mean()
+
+
+@torch.inference_mode()
+def f_score(gt, pred, radius=0.01, eps=1e-08, backend="kaolin"):
+    """
+    Compute the F-Score between a predicted and ground-truth point cloud.
+    """
+    assert backend in ["kaolin"], "Invalid backend"
+    if backend == "kaolin":
+        x, y = gt.unsqueeze(0), pred.unsqueeze(0)
+        return kaolin.metrics.pointcloud.f_score(x, y, radius, eps)
 
 
 @torch.inference_mode()
