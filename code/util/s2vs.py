@@ -8,6 +8,25 @@ import torch
 import torch.nn.functional as F
 import trimesh
 from contextlib import nullcontext
+import models.s2vs as ae_mods
+
+
+def load_model(model_name, ckpt_path, device, torch_compile=True):
+    """
+    Load a model from a file.
+    """
+    print("Loading autoencoder [%s]." % ckpt_path)
+
+    # Instantiate autoencoder
+    ae = ae_mods.__dict__[model_name]()
+    ae.load_state_dict(torch.load(ckpt_path, map_location="cpu")["model"])
+    ae = ae.to(device).eval()
+
+    # Compile using torch.compile
+    if torch_compile:
+        ae = torch.compile(ae, mode="max-autotune")
+
+    return ae
 
 
 def batch_slices(total, batch_size):
