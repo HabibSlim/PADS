@@ -102,7 +102,7 @@ def predict_occupancies(ae, latents, point_queries, n_queries):
 
 
 @torch.inference_mode()
-def decode_latents(ae, latent, grid_density=128, batch_size=None):
+def decode_latents(ae, latent, grid_density=128, batch_size=None, smooth_volume=False):
     """
     Decode latents to a mesh using marching cubes.
     """
@@ -113,6 +113,8 @@ def decode_latents(ae, latent, grid_density=128, batch_size=None):
         .cpu()
         .numpy()
     )
+    if smooth_volume:
+        volume = mcubes.smooth(volume)
     verts, faces = mcubes.marching_cubes(volume, 0)
     gap = 2.0 / grid_density
     verts *= gap
