@@ -2,19 +2,54 @@
 Test if points are inside a mesh using various methods.
 """
 
+import kaolin
 import torch
+import math
 import numpy as np
 import point_cloud_utils as pcu
 from .triangle_hash import TriangleHash as _TriangleHash
+
+
+def batch_tensor(tensor, B, padding_value=0):
+    """
+    Batch and pad a tensor.
+    """
+    N, C = tensor.shape
+    assert C == 3, "Input tensor should have 3 channels"
+
+    # Calculate K as the closest multiple of B to N
+    K = math.ceil(N / B) * B // B
+
+    # Calculate required padding
+    total_elements = B * K
+    padding_size = max(0, total_elements - N)
+
+    # Pad the tensor if necessary
+    if padding_size > 0:
+        padding = torch.full(
+            (padding_size, C), padding_value, dtype=tensor.dtype, device=tensor.device
+        )
+        padded_tensor = torch.cat([tensor, padding], dim=0)
+    else:
+        padded_tensor = tensor
+
+    # Reshape the tensor
+    return padded_tensor.reshape(B, K, C)
 
 
 def is_inside(mesh, points, hash_resolution=512, query_method="occnets"):
     """
     Check if points are inside the mesh.
     """
-    assert query_method in ["occnets", "trimesh", "pcu"], "Invalid query method"
+    assert query_method in [
+        "occnets",
+        "trimesh",
+        "pcu",
+        "kaolin",
+    ], "Invalid query method"
 
-    points = points.squeeze()
+    if query_method != "kaolin":
+        points = points.squeeze()
 
     if query_method == "occnets":
         intersector = MeshIntersector(mesh, hash_resolution)
@@ -26,6 +61,19 @@ def is_inside(mesh, points, hash_resolution=512, query_method="occnets"):
         v, f = mesh.vertices, mesh.faces
         sdf, fid, bc = pcu.signed_distance_to_mesh(points, v, f)
         contains = sdf < 0
+    elif query_method == "kaolin":
+        if not hasattr(mesh, "cuda_mesh"):
+            verts = (
+                torch.tensor(mesh.vertices, dtype=torch.float64)
+                .unsqueeze(0)
+                .to(points.device)
+            )
+            faces = torch.tensor(mesh.faces, dtype=torch.int64).to(points.device)
+
+            mesh.cuda_mesh = (verts, faces)
+        return kaolin.ops.mesh.check_sign(
+            *mesh.cuda_mesh, points, hash_resolution=hash_resolution
+        )
 
     return contains
 
