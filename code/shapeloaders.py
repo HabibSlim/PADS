@@ -8,10 +8,10 @@ import numpy as np
 import torch
 import fast_simplification
 from functools import partial
-from util.sampling import sample_surface_tpp, sample_surface_trimesh
-from voxelize.preprocess import robust_pcu_to_manifold
 from metadata import COMPAT_CLASSES, int_to_hex
 from util.contains.inside_mesh import is_inside
+from util.sampling import sample_surface_tpp, sample_surface_trimesh
+from voxelize.preprocess import robust_pcu_to_manifold
 
 
 """

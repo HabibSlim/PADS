@@ -20,13 +20,12 @@ def load_model(model_name, ckpt_path, device, torch_compile=True):
     # Instantiate autoencoder
     ae = ae_mods.__dict__[model_name]()
     ae.load_state_dict(torch.load(ckpt_path, map_location="cpu")["model"])
-    ae = ae.to(device).eval()
 
     # Compile using torch.compile
     if torch_compile:
         ae = torch.compile(ae, mode="max-autotune")
 
-    return ae
+    return ae.to(device)
 
 
 def batch_slices(total, batch_size):
