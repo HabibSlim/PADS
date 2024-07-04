@@ -15,16 +15,14 @@ def l2_dist(x_gt, x_edited):
 
 
 @torch.inference_mode()
-def chamfer_distance(a, b, backend="kaolin"):
+def chamfer_distance(x, y, backend="kaolin"):
     """
     Compute the chamfer distance between two point clouds.
     """
     assert backend in ["kaolin", "torch"], "Invalid backend"
     if backend == "kaolin":
-        x, y = a.unsqueeze(0), b.unsqueeze(0)
         return kaolin.metrics.pointcloud.chamfer_distance(x, y)
     elif backend == "torch":
-        x, y = a, b
         bs, num_points, points_dim = x.size()
         xx = torch.bmm(x, x.transpose(2, 1))
         yy = torch.bmm(y, y.transpose(2, 1))
@@ -43,16 +41,14 @@ def f_score(gt, pred, radius=0.01, eps=1e-08, backend="kaolin"):
     """
     assert backend in ["kaolin"], "Invalid backend"
     if backend == "kaolin":
-        x, y = gt.unsqueeze(0), pred.unsqueeze(0)
-        return kaolin.metrics.pointcloud.f_score(x, y, radius, eps)
+        return kaolin.metrics.pointcloud.f_score(gt, pred, radius, eps)
 
 
 @torch.inference_mode()
-def chamfer_distance_1D(a, b):
+def chamfer_distance_1D(x, y):
     """
     Compute the unidirectional chamfer distance from point cloud a to point cloud b.
     """
-    x, y = a.unsqueeze(0), b.unsqueeze(0)
     xx = torch.sum(x**2, dim=2, keepdim=True)
     yy = torch.sum(y**2, dim=2, keepdim=True).transpose(1, 2)
     zz = torch.bmm(x, y.transpose(2, 1))

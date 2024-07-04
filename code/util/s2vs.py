@@ -6,8 +6,8 @@ import mcubes
 import numpy as np
 import torch
 import torch.nn.functional as F
-import trimesh
 from contextlib import nullcontext
+from util.shapeloaders import CUDAMesh
 import models.s2vs as ae_mods
 
 
@@ -119,7 +119,7 @@ def decode_latents(ae, latent, grid_density=128, batch_size=None, smooth_volume=
     gap = 2.0 / grid_density
     verts *= gap
     verts -= 1
-    return trimesh.Trimesh(verts, faces)
+    return CUDAMesh(verts, faces)
 
 
 @torch.inference_mode()
@@ -128,9 +128,9 @@ def encode_pc(ae, pc):
     Encode a point cloud using the autoencoder.
     """
     new_pc = pc
-    if pc.shape[0] > ae.num_inputs:
-        new_pc = pc[np.random.choice(pc.shape[0], ae.num_inputs, replace=False)]
-    _, x_a = ae.encode(new_pc.unsqueeze(0))
+    if pc.shape[1] > ae.num_inputs:
+        new_pc = pc[:, np.random.choice(pc.shape[1], ae.num_inputs, replace=False)]
+    _, x_a = ae.encode(new_pc)
     return x_a
 
 

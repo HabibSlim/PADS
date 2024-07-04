@@ -29,12 +29,11 @@ def sample_surface_tpp(mesh, num_points, device="cuda"):
     sample method:
     http://mathworld.wolfram.com/TrianglePointPicking.html
     """
-    vertices, faces = mesh.vertices, mesh.faces
-    vertices = vertices.reshape(1, vertices.shape[0], vertices.shape[1])
+    vertices, faces = mesh.torch_mesh()
     N = vertices.shape[0]
 
-    vertices = torch.tensor(vertices).float().to(device)
-    faces = torch.tensor(faces).long().to(device)
+    # vertices = torch.tensor(vertices).float().to(device)
+    # faces = torch.tensor(faces).long().to(device)
 
     weights, normal = face_areas_normals(vertices, faces)
     weights_sum = torch.sum(weights, dim=1)
@@ -75,7 +74,7 @@ def sample_surface_tpp(mesh, num_points, device="cuda"):
     # (n,3) points in space on the triangle
     samples = sample_vector + tri_origins
 
-    return samples[0]
+    return samples
 
 
 def sample_surface_trimesh(mesh, num_points):

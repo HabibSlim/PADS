@@ -4,6 +4,7 @@ Grouping all dataloaders for shape optimization in one place.
 
 import os
 import trimesh
+import math
 import numpy as np
 import torch
 import fast_simplification
@@ -25,7 +26,7 @@ def decimate_mesh(mesh, factor):
     """
     vertices, faces = mesh.vertices, mesh.faces
     vertices_out, faces_out = fast_simplification.simplify(vertices, faces, factor)
-    return trimesh.Trimesh(vertices_out, faces_out)
+    return CUDAMesh(vertices_out, faces_out)
 
 
 def safe_sample_surface(mesh, num_points, sample_method="triangle_point_picking"):
@@ -46,7 +47,16 @@ def safe_sample_surface(mesh, num_points, sample_method="triangle_point_picking"
             points = np.concatenate([points, new_points[: num_points - len(points)]])
             np.random.shuffle(points)
             points = torch.tensor(points).float().cuda()
-        return points
+        return points.unsqueeze(0)
+
+
+def sample_cube(num_points):
+    """
+    Sample points in the unit cube.
+    """
+    points = torch.randn((1, num_points, 3))
+    points = points.cuda()
+    return points
 
 
 def sample_volume(
@@ -56,9 +66,7 @@ def sample_volume(
     Randomly sample points in the unit cube.
     Return occupancies for the input mesh.
     """
-    points = torch.randn(num_points, 3) * 2 - 1
-    points = points.cuda()
-
+    points = sample_cube(num_points)
     if get_occ:
         contains = is_inside(mesh, points, hash_resolution, contain_method)
         return points, contains
@@ -145,13 +153,78 @@ Defining the dataset classes.
 """
 
 
+class CUDAMesh(trimesh.base.Trimesh):
+    """
+    CUDA-compatible trimesh mesh class.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.cuda_mesh = None
+
+    def torch_mesh(self, device="cuda"):
+        """
+        Convert vertices/faces to torch tensors.
+        Move to the specified device.
+        """
+        if self.cuda_mesh is None:
+            verts = (
+                torch.tensor(self.vertices, dtype=torch.float32).unsqueeze(0).to(device)
+            )
+            faces = torch.tensor(self.faces, dtype=torch.int64).to(device)
+            self.cuda_mesh = (verts, faces)
+        return self.cuda_mesh
+
+    def clear_tensor_mesh(self):
+        """
+        Clear the cached tensor mesh.
+        """
+        self.cuda_mesh = None
+
+    def batched_mesh(self, B, padding_value=0):
+        """
+        Batch the mesh vertices.
+        """
+        verts, faces = self.torch_mesh()
+        N, C = verts.shape
+
+        # Calculate K as the closest multiple of B to N
+        K = math.ceil(N / B) * B // B
+
+        # Calculate required padding
+        total_elements = B * K
+        padding_size = max(0, total_elements - N)
+
+        # Pad the tensor if necessary
+        if padding_size > 0:
+            padding = torch.full(
+                (padding_size, C),
+                padding_value,
+                dtype=verts.dtype,
+                device=verts.device,
+            )
+            padded_tensor = torch.cat([verts, padding], dim=0)
+        else:
+            padded_tensor = verts
+
+        # Reshape the tensor
+        return padded_tensor.reshape(B, K, C), faces
+
+    def load(mesh_file):
+        """
+        Load CUDA-compatible trimesh from file.
+        """
+        mesh = trimesh.load(mesh_file)
+        return CUDAMesh(mesh.vertices, mesh.faces)
+
+
 class SingleManifoldDataset:
     """
     Sampling from a single mesh using various strategies.
     """
 
     MAX_FACES = 500000
-    SAMPLE_BATCH_SIZE = 2**17
+    MAX_SAMPLE_SIZE = 2**17
 
     def __init__(
         self,
@@ -165,6 +238,7 @@ class SingleManifoldDataset:
         noise_std=0.05,
         decimate=True,
         sample_first=False,
+        batch_size=1,
     ):
         self.n_points = n_points
         self.obj_files = get_class_objs(obj_dir, shape_cls)
@@ -174,6 +248,7 @@ class SingleManifoldDataset:
         self.max_it = max_it
         self.decimate = decimate
         self.sample_first = sample_first
+        self.batch_size = batch_size
 
         # Defining sampling strategies
         fn_sample_surface = partial(sample_surface_simple)
@@ -206,7 +281,7 @@ class SingleManifoldDataset:
 
     def __getitem__(self, idx):
         if self.obj is None or self.obj_idx != idx:
-            self.obj = trimesh.load(self.obj_files[idx])
+            self.obj = CUDAMesh.load(self.obj_files[idx])
             self.obj_idx = idx
 
             # Print an alert if the mesh is not watertight
@@ -215,7 +290,7 @@ class SingleManifoldDataset:
                 obj_base_name = os.path.basename(self.obj_files[idx])
                 robust_pcu_to_manifold(self.obj_files[idx], "/tmp/" + obj_base_name)
                 # Try to load and test if watertight
-                self.obj = trimesh.load("/tmp/" + obj_base_name)
+                self.obj = CUDAMesh.load("/tmp/" + obj_base_name)
                 assert self.obj.is_watertight
                 # Replace the original mesh with the watertight one
                 # Write to original file
@@ -232,12 +307,12 @@ class SingleManifoldDataset:
         # And simply serve the same points for the rest of the iterations
         if self.sample_first:
             # Use batch sampling
-            n_batches = self.n_points // self.SAMPLE_BATCH_SIZE
+            n_batches = self.n_points // self.MAX_SAMPLE_SIZE
             all_points, all_occs = [], []
             for k in range(n_batches):
                 if k % 4 == 0:
                     print("Sampling batch [%d/%d]" % (k + 1, n_batches))
-                points, occs = self.sampling_fn(self.obj, self.SAMPLE_BATCH_SIZE)
+                points, occs = self.sampling_fn(self.obj, self.MAX_SAMPLE_SIZE)
                 all_points += [points]
                 all_occs += [occs]
             print()
