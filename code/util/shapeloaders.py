@@ -12,7 +12,7 @@ import fast_simplification
 from functools import partial
 from metadata import COMPAT_CLASSES, int_to_hex
 from util.contains.inside_mesh import is_inside
-from util.sampling import sample_surface_tpp, sample_surface_trimesh
+from util.sampling import sample_surface_tpp, sample_surface_trimesh, face_areas_normals
 from voxelize.preprocess import robust_pcu_to_manifold
 
 
@@ -154,36 +154,36 @@ Defining the dataset classes.
 """
 
 
-class CUDAMesh(kal.rep.SurfaceMesh):
+class CUDAMesh:
     """
-    CUDA-compatible kaolin mesh class with trimesh support.
+    CUDA-compatible kaolin/trimesh wrapper class.
     """
 
-    def __init__(self, *args, **kwargs):
-        vertices, faces = args
+    def __init__(self, vertices, faces):
         if isinstance(vertices, np.ndarray):
             vertices = torch.tensor(vertices).float().cuda()
         if isinstance(faces, np.ndarray):
             faces = torch.tensor(faces.astype(np.int64)).long().cuda()
-        args = (vertices, faces)
-        super().__init__(*args, **kwargs)
+        self.kaolin_mesh = kal.rep.SurfaceMesh(vertices, faces)
         self.trimesh_mesh = trimesh.Trimesh(
-            self.vertices.cpu().numpy(), self.faces.cpu().numpy()
+            vertices.squeeze().cpu().numpy(), faces.squeeze().cpu().numpy()
         )
+        self.face_dist = None
 
-    def torch_mesh(self, device="cuda"):
+    def load(obj_file, to_cuda=True):
         """
-        Convert vertices/faces to torch tensors.
-        Move to the specified device.
+        Load a mesh from an obj file.
         """
-        return (self.vertices.unsqueeze(0), self.faces)
+        mesh = kal.io.obj.import_mesh(obj_file)
+        if to_cuda:
+            mesh = mesh.cuda()
+        return CUDAMesh(mesh.vertices, mesh.faces)
 
     def batched_mesh(self, B, padding_value=0):
         """
         Batch the mesh vertices.
         """
-        verts, faces = self.torch_mesh()
-        N, C = verts.shape
+        N, C = self.vertices.shape
 
         # Calculate K as the closest multiple of B to N
         K = math.ceil(N / B) * B // B
@@ -197,15 +197,15 @@ class CUDAMesh(kal.rep.SurfaceMesh):
             padding = torch.full(
                 (padding_size, C),
                 padding_value,
-                dtype=verts.dtype,
-                device=verts.device,
+                dtype=self.vertices.dtype,
+                device=self.vertices.device,
             )
-            padded_tensor = torch.cat([verts, padding], dim=0)
+            padded_tensor = torch.cat([self.vertices, padding], dim=0)
         else:
-            padded_tensor = verts
+            padded_tensor = self.vertices
 
         # Reshape the tensor
-        return padded_tensor.reshape(B, K, C), faces
+        return padded_tensor.reshape(B, K, C), self.faces
 
     def show(self):
         """
@@ -213,21 +213,33 @@ class CUDAMesh(kal.rep.SurfaceMesh):
         """
         return self.trimesh_mesh.show()
 
-    def load(obj_file, to_cuda=True):
-        """
-        Load a mesh from an obj file.
-        """
-        mesh = kal.io.obj.import_mesh(obj_file)
-        if to_cuda:
-            mesh = mesh.cuda()
-        return CUDAMesh(mesh.vertices, mesh.faces)
-
     @property
     def is_watertight(self):
         """
         Check if the mesh is watertight.
         """
         return self.trimesh_mesh.is_watertight
+
+    @property
+    def vertices(self):
+        return self.kaolin_mesh.vertices.unsqueeze(0)
+
+    @property
+    def faces(self):
+        return self.kaolin_mesh.faces
+
+    @property
+    def face_distribution(self):
+        """
+        Compute a distribution over faces based on their surface areas.
+        """
+        if self.face_dist is None:
+            weights, normal = face_areas_normals(self.vertices, self.faces)
+            weights_sum = torch.sum(weights, dim=1)
+            self.face_dist = torch.distributions.categorical.Categorical(
+                probs=weights / weights_sum[:, None]
+            )
+        return self.face_dist
 
     def copy(self):
         """

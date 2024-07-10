@@ -35,7 +35,7 @@ def is_inside(mesh, points, hash_resolution=512, query_method="occnets"):
         contains = sdf < 0
     elif query_method == "kaolin":
         return kaolin.ops.mesh.check_sign(
-            *mesh.torch_mesh(), points, hash_resolution=hash_resolution
+            mesh.vertices, mesh.faces, points, hash_resolution=hash_resolution
         )
 
     return contains
@@ -47,7 +47,7 @@ class MeshIntersector:
     """
 
     def __init__(self, mesh, resolution=512, device="cuda"):
-        triangles = mesh.vertices[mesh.faces].double()
+        triangles = mesh.vertices.squeeze()[mesh.faces].double()
         n_tri = triangles.shape[0]
 
         self.resolution = resolution

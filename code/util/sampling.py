@@ -21,7 +21,7 @@ def face_areas_normals(vertices, faces):
     return face_areas, face_normals
 
 
-def sample_surface_tpp(mesh, num_points, device="cuda"):
+def sample_surface_tpp(mesh, num_points, face_dist=None):
     """
     Sample points on the surface of a mesh using Triangle Point Picking.
     CUDA-compatible sampling method.
@@ -29,18 +29,12 @@ def sample_surface_tpp(mesh, num_points, device="cuda"):
     sample method:
     http://mathworld.wolfram.com/TrianglePointPicking.html
     """
-    vertices, faces = mesh.torch_mesh()
+    vertices, faces = mesh.vertices, mesh.faces
     N = vertices.shape[0]
 
-    # vertices = torch.tensor(vertices).float().to(device)
-    # faces = torch.tensor(faces).long().to(device)
-
-    weights, normal = face_areas_normals(vertices, faces)
-    weights_sum = torch.sum(weights, dim=1)
-    dist = torch.distributions.categorical.Categorical(
-        probs=weights / weights_sum[:, None]
-    )
-    face_index = dist.sample((num_points,))
+    if face_dist is None:
+        face_dist = mesh.face_distribution
+    face_index = face_dist.sample((num_points,))
 
     # pull triangles into the form of an origin + 2 vectors
     tri_origins = vertices[:, faces[:, 0], :]
