@@ -11,3 +11,5 @@ ckpt/**
 *.sh
 *.err
 *.out
+tmp/
+tmp/**

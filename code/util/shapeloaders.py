@@ -2,6 +2,7 @@
 Grouping all dataloaders for shape optimization in one place.
 """
 
+import kaolin as kal
 import os
 import trimesh
 import math
@@ -153,33 +154,29 @@ Defining the dataset classes.
 """
 
 
-class CUDAMesh(trimesh.base.Trimesh):
+class CUDAMesh(kal.rep.SurfaceMesh):
     """
-    CUDA-compatible trimesh mesh class.
+    CUDA-compatible kaolin mesh class with trimesh support.
     """
 
     def __init__(self, *args, **kwargs):
+        vertices, faces = args
+        if isinstance(vertices, np.ndarray):
+            vertices = torch.tensor(vertices).float().cuda()
+        if isinstance(faces, np.ndarray):
+            faces = torch.tensor(faces.astype(np.int64)).long().cuda()
+        args = (vertices, faces)
         super().__init__(*args, **kwargs)
-        self.cuda_mesh = None
+        self.trimesh_mesh = trimesh.Trimesh(
+            self.vertices.cpu().numpy(), self.faces.cpu().numpy()
+        )
 
     def torch_mesh(self, device="cuda"):
         """
         Convert vertices/faces to torch tensors.
         Move to the specified device.
         """
-        if self.cuda_mesh is None:
-            verts = (
-                torch.tensor(self.vertices, dtype=torch.float32).unsqueeze(0).to(device)
-            )
-            faces = torch.tensor(self.faces, dtype=torch.int64).to(device)
-            self.cuda_mesh = (verts, faces)
-        return self.cuda_mesh
-
-    def clear_tensor_mesh(self):
-        """
-        Clear the cached tensor mesh.
-        """
-        self.cuda_mesh = None
+        return (self.vertices.unsqueeze(0), self.faces)
 
     def batched_mesh(self, B, padding_value=0):
         """
@@ -210,12 +207,39 @@ class CUDAMesh(trimesh.base.Trimesh):
         # Reshape the tensor
         return padded_tensor.reshape(B, K, C), faces
 
-    def load(mesh_file):
+    def show(self):
         """
-        Load CUDA-compatible trimesh from file.
+        Create a trimesh object from the mesh and display it.
         """
-        mesh = trimesh.load(mesh_file)
+        return self.trimesh_mesh.show()
+
+    def load(obj_file, to_cuda=True):
+        """
+        Load a mesh from an obj file.
+        """
+        mesh = kal.io.obj.import_mesh(obj_file)
+        if to_cuda:
+            mesh = mesh.cuda()
         return CUDAMesh(mesh.vertices, mesh.faces)
+
+    @property
+    def is_watertight(self):
+        """
+        Check if the mesh is watertight.
+        """
+        return self.trimesh_mesh.is_watertight
+
+    def copy(self):
+        """
+        Copy the trimesh instance and return it.
+        """
+        return self.trimesh_mesh.copy()
+
+    def export(self, obj_file):
+        """
+        Export the mesh to an obj file.
+        """
+        return self.trimesh_mesh.export(obj_file)
 
 
 class SingleManifoldDataset:

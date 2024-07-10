@@ -47,8 +47,7 @@ class MeshIntersector:
     """
 
     def __init__(self, mesh, resolution=512, device="cuda"):
-        triangles = mesh.vertices[mesh.faces]
-        triangles = torch.tensor(triangles, dtype=torch.float64)
+        triangles = mesh.vertices[mesh.faces].double()
         n_tri = triangles.shape[0]
 
         self.resolution = resolution
