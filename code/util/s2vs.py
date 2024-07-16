@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from contextlib import nullcontext
-from util.shapeloaders import CUDAMesh
+from util.misc import CUDAMesh
 import models.s2vs as ae_mods
 
 
@@ -101,24 +101,24 @@ def predict_occupancies(ae, latents, point_queries, n_queries):
     return pred_occs
 
 
-@torch.inference_mode()
 def decode_latents(ae, latent, grid_density=128, batch_size=None, smooth_volume=False):
     """
     Decode latents to a mesh using marching cubes.
     """
-    logits = query_latents_grid(ae, latent, grid_density, batch_size)
-    volume = (
-        logits.view(grid_density + 1, grid_density + 1, grid_density + 1)
-        .permute(1, 0, 2)
-        .cpu()
-        .numpy()
-    )
-    if smooth_volume:
-        volume = mcubes.smooth(volume)
-    verts, faces = mcubes.marching_cubes(volume, 0)
-    gap = 2.0 / grid_density
-    verts *= gap
-    verts -= 1
+    with torch.inference_mode():
+        logits = query_latents_grid(ae, latent, grid_density, batch_size)
+        volume = (
+            logits.view(grid_density + 1, grid_density + 1, grid_density + 1)
+            .permute(1, 0, 2)
+            .cpu()
+            .numpy()
+        )
+        if smooth_volume:
+            volume = mcubes.smooth(volume)
+        verts, faces = mcubes.marching_cubes(volume, 0)
+        gap = 2.0 / grid_density
+        verts *= gap
+        verts -= 1
     return CUDAMesh(verts, faces)
 
 
@@ -135,7 +135,7 @@ def encode_pc(ae, pc):
 
 
 @torch.inference_mode()
-def encode_decode(ae, pc, grid_density=128, batch_size=None):
+def encode_decode(ae, pc, grid_density=256, batch_size=None):
     """
     Encode and decode a point cloud.
     """

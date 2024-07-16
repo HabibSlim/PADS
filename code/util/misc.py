@@ -1,20 +1,141 @@
+"""
+Miscellaneous utility functions/classes.
+"""
+
 import builtins
 import datetime
+import math
 import os
 import time
 from collections import defaultdict, deque
 from pathlib import Path
 
 import cProfile
+import kaolin as kal
+import numpy as np
 import pstats
 import torch
 import torch.distributed as dist
 import trimesh
 from torch import inf
+from datasets.sampling import face_areas_normals
+
+
+class CUDAMesh:
+    """
+    CUDA-compatible kaolin/trimesh wrapper class.
+    """
+
+    def __init__(self, vertices, faces):
+        if isinstance(vertices, np.ndarray):
+            vertices = torch.tensor(vertices).float().cuda()
+        if isinstance(faces, np.ndarray):
+            faces = torch.tensor(faces.astype(np.int64)).long().cuda()
+        self.kaolin_mesh = kal.rep.SurfaceMesh(vertices, faces)
+        self.trimesh_mesh = trimesh.Trimesh(
+            vertices.squeeze().cpu().numpy(), faces.squeeze().cpu().numpy()
+        )
+        self.face_dist = None
+
+    def batched_mesh(self, B, padding_value=0):
+        """
+        Batch the mesh vertices.
+        """
+        N, C = self.vertices.shape
+
+        # Calculate K as the closest multiple of B to N
+        K = math.ceil(N / B) * B // B
+
+        # Calculate required padding
+        total_elements = B * K
+        padding_size = max(0, total_elements - N)
+
+        # Pad the tensor if necessary
+        if padding_size > 0:
+            padding = torch.full(
+                (padding_size, C),
+                padding_value,
+                dtype=self.vertices.dtype,
+                device=self.vertices.device,
+            )
+            padded_tensor = torch.cat([self.vertices, padding], dim=0)
+        else:
+            padded_tensor = self.vertices
+
+        # Reshape the tensor
+        return padded_tensor.reshape(B, K, C), self.faces
+
+    def copy(self):
+        """
+        Copy the trimesh instance and return it.
+        """
+        return self.trimesh_mesh.copy()
+
+    def export(self, obj_file):
+        """
+        Export the mesh to an obj file.
+        """
+        return self.trimesh_mesh.export(obj_file)
+
+    def load(obj_file, to_cuda=True):
+        """
+        Load a mesh from an obj file.
+        """
+        mesh = kal.io.obj.import_mesh(obj_file)
+        if to_cuda:
+            mesh = mesh.cuda()
+        return CUDAMesh(mesh.vertices, mesh.faces)
+
+    def set_grad(self, requires_grad=True):
+        """
+        Toggle gradient computation for the vertices.
+        """
+        self.kaolin_mesh.vertices.requires_grad = requires_grad
+
+    def get_grad(self):
+        """
+        Get the gradient of the vertices.
+        """
+        return self.kaolin_mesh.vertices.grad
+
+    def show(self):
+        """
+        Create a trimesh object from the mesh and display it.
+        """
+        return self.trimesh_mesh.show()
+
+    @property
+    def face_distribution(self):
+        """
+        Compute a distribution over faces based on their surface areas.
+        """
+        if self.face_dist is None:
+            weights, normal = face_areas_normals(self.vertices, self.faces)
+            weights_sum = torch.sum(weights, dim=1)
+            self.face_dist = torch.distributions.categorical.Categorical(
+                probs=weights / weights_sum[:, None]
+            )
+        return self.face_dist
+
+    @property
+    def is_watertight(self):
+        """
+        Check if the mesh is watertight.
+        """
+        return self.trimesh_mesh.is_watertight
+
+    @property
+    def faces(self):
+        return self.kaolin_mesh.faces
+
+    @property
+    def vertices(self):
+        return self.kaolin_mesh.vertices.unsqueeze(0)
 
 
 class SmoothedValue(object):
-    """Track a series of values and provide access to smoothed values over a
+    """
+    Track a series of values and provide access to smoothed values over a
     window or the global series average.
     """
 

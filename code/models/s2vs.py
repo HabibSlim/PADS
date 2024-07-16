@@ -407,6 +407,10 @@ class KLAutoEncoder(nn.Module):
         self.mean_fc = nn.Linear(dim, latent_dim)
         self.logvar_fc = nn.Linear(dim, latent_dim)
 
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
     def encode(self, pc):
         # pc: B x N x 3
         B, N, D = pc.shape

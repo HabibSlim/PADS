@@ -105,8 +105,8 @@ class MeshIntersector:
         # Check if point contained in mesh
         contains1 = torch.fmod(nintersect0, 2) == 1
         contains2 = torch.fmod(nintersect1, 2) == 1
-        if (contains1 != contains2).any():
-            print("Warning: contains1 != contains2 for some points.")
+        # if (contains1 != contains2).any():
+        #     print("Warning: contains1 != contains2 for some points.")
         contains[mask] = contains1 & contains2
         return contains
 

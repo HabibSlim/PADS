@@ -4,6 +4,7 @@ Defining the rendering loss used for shape inversion.
 
 import torch
 import losses.diffrender as diffrender
+from util.misc import CUDAMesh
 
 
 def rendering_loss(gt_mesh, rec_mesh, render_resolution, n_views=16, device="cuda"):
@@ -61,8 +62,8 @@ def vertices_gradients(
     Compute the gradient of the rendering loss w.r.t. the vertices of the ground-truth mesh.
     """
     # Enable gradients for vertices
-    gt_mesh.vertices.requires_grad = True
-    rec_mesh.vertices.requires_grad = False
+    gt_mesh.set_grad()
+    rec_mesh.set_grad()
 
     # Compute rendering loss
     mask_loss, depth_loss = rendering_loss(gt_mesh, rec_mesh, render_resolution)
@@ -72,9 +73,7 @@ def vertices_gradients(
     loss.backward()
 
     # Compute the weights for each face
-    vert_grads = gt_mesh.vertices.grad.clone().detach().abs()
-
-    return vert_grads
+    return gt_mesh.get_grad().clone().detach().abs()
 
 
 def estimate_gradient(
@@ -135,15 +134,30 @@ def faces_scores(gt_mesh, rec_mesh, render_resolution=256, num_samples=32):
     )
 
     with torch.inference_mode():
+        vertices = gt_mesh.vertices.squeeze()
         selected_vertices = high_error_vertices(
-            vert_grads, gt_mesh.vertices, threshold=0.5, scale=12, shift=0.1
+            vert_grads, vertices, threshold=0.5, scale=12, shift=0.1
         )
 
         # Compute pairwise distances between selected vertices and all vertices
-        dists = torch.cdist(gt_mesh.vertices, selected_vertices)
+        dists = torch.cdist(vertices, selected_vertices)
 
         # Make a matrix of dim N x K giving the top-k distances for each vertex
         vert_scores = min_max_norm(torch.exp(-10 * dists).sum(dim=1))
         vert_scores = sigmoid(vert_scores, scale=4, shift=0.4)
 
     return vert_score_to_faces(vert_scores, gt_mesh.faces)
+
+
+def scale_for_renders(mesh):
+    """
+    Rescale/translate meshes to fit in the rendering window.
+    """
+    vertices, faces = mesh.vertices, mesh.faces
+    vertices = vertices.squeeze().clone()
+    faces = faces.clone()
+    vmin, vmax = vertices.min(dim=0)[0], vertices.max(dim=0)[0]
+    scale = 1.8 / torch.max(vmax - vmin).item()
+    vertices = vertices - (vmax + vmin) / 2  # Center mesh on origin
+    vertices = vertices * scale  # Rescale to [-0.9, 0.9]
+    return CUDAMesh(vertices, faces)
