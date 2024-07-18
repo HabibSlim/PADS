@@ -2,10 +2,17 @@
 Dataset iterators for 3DCoMPaT and ShapeNet.
 """
 
+import json
+import os
 import numpy as np
 import zipfile
 from datasets.CoMPaT import compat3D
-from metadata import SHAPENET_CLASSES, COMPAT_CLASSES, COMPAT_TRANSFORMS
+from datasets.metadata import (
+    SHAPENET_CLASSES,
+    COMPAT_CLASSES,
+    COMPAT_TRANSFORMS,
+    int_to_hex,
+)
 
 METADATA_DIR = "/ibex/user/slimhy/3DCoMPaT/3DCoMPaT-v2/metadata"
 ZIP_SRC = "/ibex/user/slimhy/surfaces.zip"
@@ -47,3 +54,30 @@ def compat_iterator(shape_cls, num_points):
 
     for shape_id, shape_label, pointcloud, point_part_labels in train_dataset:
         yield COMPAT_TRANSFORMS[shape_cls](pointcloud)
+
+
+def get_class_objs(obj_dir, shape_cls, split="all"):
+    """
+    Get the list of objects for a given class/split.
+    """
+    compat_cls_code = int_to_hex(COMPAT_CLASSES[shape_cls])
+    obj_files = os.listdir(obj_dir)
+    obj_files = [os.path.join(obj_dir, f) for f in obj_files]
+    obj_files = [
+        f for f in obj_files if f.endswith(".obj") and compat_cls_code + "_" in f
+    ]
+    obj_files = sorted(obj_files)
+
+    if split == "all":
+        return obj_files
+
+    # Open the split metadata
+    pwd = os.path.dirname(os.path.realpath(__file__))
+    split_dict = json.load(open(os.path.join(pwd, "CoMPaT", "split.json")))
+
+    # Filter split meshes
+    obj_files = [
+        f for f in obj_files if f.split("/")[-1].split(".")[0] in split_dict[split]
+    ]
+
+    return obj_files

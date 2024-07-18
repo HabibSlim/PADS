@@ -7,13 +7,13 @@ import numpy as np
 import torch
 import fast_simplification
 from functools import partial
-from datasets.metadata import COMPAT_CLASSES, int_to_hex
 from datasets.sampling import (
     sample_surface_simple,
     sample_near_surface,
     sample_volume,
     combine_samplings,
 )
+from datasets.compat import get_class_objs
 from util.misc import CUDAMesh
 from voxelize.preprocess import robust_pcu_to_manifold
 
@@ -23,25 +23,11 @@ Utility functions.
 """
 
 
-def get_class_objs(obj_dir, shape_cls):
-    """
-    Get the list of objects for a given class.
-    """
-    compat_cls_code = int_to_hex(COMPAT_CLASSES[shape_cls])
-    obj_files = os.listdir(obj_dir)
-    obj_files = [os.path.join(obj_dir, f) for f in obj_files]
-    obj_files = [
-        f for f in obj_files if f.endswith(".obj") and compat_cls_code + "_" in f
-    ]
-    obj_files = sorted(obj_files)
-    return obj_files
-
-
 def decimate_mesh(mesh, factor):
     """
     Decimate the input mesh by the given factor using Fast Quadric Mesh Simplification.
     """
-    vertices, faces = mesh.vertices, mesh.faces
+    vertices, faces = mesh.trimesh_mesh.vertices, mesh.trimesh_mesh.faces
     vertices_out, faces_out = fast_simplification.simplify(vertices, faces, factor)
     return CUDAMesh(vertices_out, faces_out)
 
@@ -73,9 +59,12 @@ class SingleManifoldDataset:
         decimate=True,
         sample_first=False,
         batch_size=1,
+        split="all",
     ):
         self.n_points = n_points
-        self.obj_files = get_class_objs(obj_dir, shape_cls)
+        self.obj_files = get_class_objs(
+            obj_dir=obj_dir, shape_cls=shape_cls, split=split
+        )
         self.mesh_idx = 0
         self.mesh = None
         self.normalize = normalize

@@ -80,7 +80,7 @@ def estimate_gradient(
     gt_mesh, rec_mesh, num_samples=32, render_resolution=256, get_face_weights=False
 ):
     """
-    Monte-Carlo estiamtion of the gradient of the rendering loss
+    Monte-Carlo estimation of the gradient of the rendering loss
     w.r.t. the vertices of the ground-truth mesh.
     """
     # Averaging the gradients over multiple samples

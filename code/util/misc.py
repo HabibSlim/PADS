@@ -23,7 +23,7 @@ from datasets.sampling import face_areas_normals
 
 class CUDAMesh:
     """
-    CUDA-compatible kaolin/trimesh wrapper class.
+    CUDA-compatible kaolin+trimesh wrapper class.
     """
 
     def __init__(self, vertices, faces):

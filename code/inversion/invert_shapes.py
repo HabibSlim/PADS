@@ -16,7 +16,6 @@ from inversion.evaluate import evaluate_reconstruction
 
 ACTIVE_CLASS = "chair"
 OBJ_DIR = "/ibex/user/slimhy/PADS/data/obj_manifold/"
-OBJ_ID = 2
 N_POINTS = 2**21
 MAX_POINTS = 2**21  # Maximum number of points for a single batch on a A100 GPU
 
@@ -109,7 +108,25 @@ def get_args_parser():
         help="Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.",
     )
 
+    # Data split parameters
+    parser.add_argument("--obj-id-list", type=str, help="List of object IDs to process")
+
+    # Hyperparameters
+
     return parser
+
+
+def initialize_latents(ae, obj_id):
+    """
+    Get the initial latents for the optimization.
+    """
+    orig_dataset = SingleManifoldDataset(
+        OBJ_DIR, ACTIVE_CLASS, ae.num_inputs, normalize=False, sampling_method="surface"
+    )
+    surface_points, _ = next(orig_dataset[obj_id])
+    init_latents = s2vs.encode_pc(ae, surface_points).detach()
+
+    return init_latents
 
 
 def main(args):
@@ -125,56 +142,55 @@ def main(args):
     ae = s2vs.load_model(args.ae, args.ae_pth, device, torch_compile=True)
     ae = ae.eval()
 
-    # Initialize the latents
-    orig_dataset = SingleManifoldDataset(
-        OBJ_DIR, ACTIVE_CLASS, ae.num_inputs, normalize=False, sampling_method="surface"
-    )
-    surface_points, _ = next(orig_dataset[OBJ_ID])
-    init_latents = s2vs.encode_pc(ae, surface_points).detach()
+    for obj_id in args.obj_id_list:
+        # Initialize the latents
+        init_latents = initialize_latents(ae, obj_id)
 
-    # Instantiate the shape dataset
-    shape_dataset = SingleManifoldDataset(
-        OBJ_DIR,
-        ACTIVE_CLASS,
-        N_POINTS,
-        normalize=False,
-        sampling_method="volume+near_surface",
-        contain_method="occnets",
-        decimate=True,
-        sample_first=False,
-    )
+        # Instantiate the shape dataset
+        shape_dataset = SingleManifoldDataset(
+            OBJ_DIR,
+            ACTIVE_CLASS,
+            N_POINTS,
+            normalize=False,
+            sampling_method="volume+near_surface",
+            contain_method="occnets",
+            decimate=True,
+            sample_first=False,
+        )
 
-    # Optimize the latents
-    optimized_latents = optimize_latents(
-        ae,
-        shape_dataset,
-        init_latents,
-        acc_steps=N_POINTS // MAX_POINTS if N_POINTS > MAX_POINTS else 1,
-        max_iter=50,
-        optimizer=AdamWScheduleFree,
-    )
+        # Optimize the latents
+        optimized_latents = optimize_latents(
+            ae,
+            shape_dataset,
+            init_latents,
+            acc_steps=N_POINTS // MAX_POINTS if N_POINTS > MAX_POINTS else 1,
+            max_iter=50,
+            optimizer=AdamWScheduleFree,
+        )
 
-    # Refine the latents in a second stage
-    refined_latents = refine_latents(
-        ae,
-        shape_dataset.mesh,
-        optimized_latents,
-        acc_steps=N_POINTS // MAX_POINTS if N_POINTS > MAX_POINTS else 1,
-        max_iter=50,
-        optimizer=AdamWScheduleFree,
-    )
+        # Refine the latents in a second stage
+        refined_latents = refine_latents(
+            ae,
+            shape_dataset.mesh,
+            optimized_latents,
+            acc_steps=N_POINTS // MAX_POINTS if N_POINTS > MAX_POINTS else 1,
+            max_iter=50,
+            optimizer=AdamWScheduleFree,
+        )
 
-    # Decode the optimized latents
-    rec_mesh = s2vs.decode_latents(
-        ae, misc.d_GPU(refined_latents), grid_density=256, batch_size=128**3
-    )
+        # Decode the optimized latents
+        rec_mesh = s2vs.decode_latents(
+            ae, misc.d_GPU(refined_latents), grid_density=256, batch_size=128**3
+        )
 
-    # Evaluate the final reconstruction
-    eval_metrics = evaluate_reconstruction(
-        shape_dataset.mesh, rec_mesh, optimized_latents, query_method="occnets"
-    )
-    eval_metrics["obj_id"] = OBJ_ID
+        # Evaluate the final reconstruction
+        eval_metrics = evaluate_reconstruction(
+            shape_dataset.mesh, rec_mesh, optimized_latents, query_method="occnets"
+        )
+        eval_metrics["obj_id"] = obj_id
 
 
 if __name__ == "__main__":
-    main(get_args_parser().parse_args())
+    args = get_args_parser().parse_args()
+    args.obj_id_list = args.obj_id_list.split(",")
+    main(args)

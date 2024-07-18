@@ -7,9 +7,13 @@ import torch.nn.functional as F
 import util.s2vs as s2vs
 import util.misc as misc
 
-from datasets.sampling import sample_surface_tpp
+from datasets.sampling import (
+    sample_distribution,
+    sample_volume,
+    combine_samplings,
+)
 from losses.rendering_loss import faces_scores, rendering_loss
-from util.contains.inside_mesh import is_inside
+from functools import partial
 
 
 def error_distribution(gt_mesh, rec_mesh, squeeze_factor=0.5):
@@ -30,27 +34,6 @@ def error_distribution(gt_mesh, rec_mesh, squeeze_factor=0.5):
     return face_dist
 
 
-def sample_distribution(
-    gt_mesh,
-    num_points,
-    face_dist,
-    *,
-    noise_std=0.05,
-    hash_resolution=512,
-    contain_method="occnets",
-):
-    """
-    Sample faces from the error distribution.
-    """
-    points = sample_surface_tpp(gt_mesh, num_points, face_dist=face_dist).detach()
-
-    # Add noise to the points
-    points += torch.randn(num_points, 3).cuda() * noise_std
-    occs = is_inside(gt_mesh, points, hash_resolution, contain_method)
-
-    return points, occs
-
-
 def optimize_latents(
     ae,
     shape_dataset,
@@ -60,6 +43,7 @@ def optimize_latents(
     accumulation_steps=1,
     max_iter=100,
     optimizer=None,
+    lr=1e-3,
 ):
     """
     Optimize input latent codes w.r.t. a single object with optional gradient accumulation.
@@ -67,7 +51,7 @@ def optimize_latents(
     latents = init_latents.clone().detach().to(ae.device).requires_grad_(True)
     if optimizer is None:
         optimizer = torch.optim.Adam
-    optimizer = optimizer([latents], lr=1e-3)
+    optimizer = optimizer([latents], lr=lr)
 
     # Defining shape iterators
     shape_it = iter(shape_dataset[object_id])
@@ -129,37 +113,71 @@ def refine_latents(
     gt_mesh,
     init_latents,
     num_points,
+    best_loss,
     *,
     accumulation_steps=1,
     max_iter=100,
+    refresh_dist_every=25,
     optimizer=None,
+    lr=1e-3,
+    sampling_method="near_surface_weighted",
 ):
     """
     Optimize input latent codes by sampling high-error regions with a higher frequency.
     """
+
+    def get_sampling_fn(face_dist):
+        """
+        Return the sampling function for the current error distribution.
+        """
+        sample_near_surface_weighted = partial(sample_distribution, face_dist=face_dist)
+        sample_near_surface_uniform = partial(sample_distribution, face_dist=None)
+
+        sampling_fn = {
+            "near_surface_weighted": sample_near_surface_weighted,
+            "near_surface_weighted+uniform": partial(
+                combine_samplings,
+                sampling_fns=[
+                    sample_near_surface_weighted,
+                    sample_near_surface_uniform,
+                ],
+            ),
+            "volume+near_surface_weighted": partial(
+                combine_samplings,
+                sampling_fns=[sample_volume, sample_near_surface_weighted],
+            ),
+            "volume+near_surface_weighted+uniform": partial(
+                combine_samplings,
+                sampling_fns=[
+                    sample_volume,
+                    sample_near_surface_weighted,
+                    sample_near_surface_uniform,
+                ],
+            ),
+        }[sampling_method]
+
+        return sampling_fn
+
     latents = init_latents.clone().detach().to(ae.device).requires_grad_(True)
     if optimizer is None:
         optimizer = torch.optim.Adam
-    optimizer = optimizer([latents], lr=1e-3)
+    optimizer = optimizer([latents], lr=lr)
 
     # Compute the error distribution
     face_dist = error_distribution(gt_mesh, s2vs.decode_latents(ae, latents))
     gt_mesh.set_grad(requires_grad=False)
+    sampling_fn = get_sampling_fn(face_dist)
 
     # Main optimization loop
     iter_count = 0
     best_latents = latents.clone()
-    best_r_loss = float("inf")
+    best_r_loss = best_loss
     while iter_count < max_iter:
         optimizer.zero_grad()
         accumulated_loss = 0
 
         for k in range(accumulation_steps):
-            surface_points, occs = sample_distribution(
-                gt_mesh,
-                num_points=num_points,
-                face_dist=face_dist,
-            )
+            surface_points, occs = sampling_fn(gt_mesh, num_points)
             surface_points = surface_points.to(ae.device)
             occs = occs.float().flatten().to(ae.device)
 
@@ -176,8 +194,8 @@ def refine_latents(
         # Step the optimizer
         optimizer.step()
 
+        # Evaluate the rendering loss
         if iter_count % 10 == 0:
-            # Evaluate rendering loss
             rec_mesh = s2vs.decode_latents(
                 ae, misc.d_GPU(latents), grid_density=512, batch_size=128**3
             )
@@ -193,6 +211,12 @@ def refine_latents(
             print(
                 f"Iter {iter_count}: Average Loss {(accumulated_loss / accumulation_steps):.4f}, Rendering Loss {r_loss:.4f}"
             )
+
+        # Re-compute the error distribution
+        if iter_count % refresh_dist_every == 0 and iter_count > 0:
+            face_dist = error_distribution(gt_mesh, s2vs.decode_latents(ae, latents))
+            gt_mesh.set_grad(requires_grad=False)
+            sampling_fn = get_sampling_fn(face_dist)
 
         iter_count += 1
 

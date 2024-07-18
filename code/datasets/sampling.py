@@ -108,7 +108,7 @@ Sampling utility functions.
 """
 
 
-def safe_sample_surface(mesh, num_points, sample_method="triangle_point_picking"):
+def sample_surface(mesh, num_points, sample_method="triangle_point_picking"):
     """
     Sample points on the mesh surface. Guarantee that the number of points is num_points.
     """
@@ -138,6 +138,30 @@ def sample_cube(num_points):
     return points
 
 
+def sample_distribution(
+    gt_mesh,
+    num_points,
+    *,
+    face_dist=None,
+    noise_std=0.05,
+    hash_resolution=512,
+    contain_method="occnets",
+    get_occ=True,
+):
+    """
+    Sample faces from an input weighted face-wise distribution.
+    """
+    points = sample_surface_tpp(gt_mesh, num_points, face_dist=face_dist).detach()
+
+    # Add noise to the points
+    points += torch.randn(num_points, 3).cuda() * noise_std
+
+    if get_occ:
+        occs = is_inside(gt_mesh, points, hash_resolution, contain_method)
+        return points, occs
+    return points
+
+
 def sample_volume(
     mesh, num_points, hash_resolution=512, contain_method="occnets", get_occ=True
 ):
@@ -156,7 +180,7 @@ def sample_surface_simple(mesh, num_points, get_occ=True):
     """
     Randomly sample points on the mesh surface.
     """
-    points = safe_sample_surface(mesh, num_points)
+    points = sample_surface(mesh, num_points)
     if get_occ:
         return points, torch.ones(num_points)
     return points
@@ -173,7 +197,7 @@ def sample_near_surface(
     """
     Randomly sample points close to the mesh surface.
     """
-    points = safe_sample_surface(mesh, num_points)
+    points = sample_surface(mesh, num_points)
     # Add noise to the points
     points += torch.randn(num_points, 3).cuda() * noise_std
     occs = is_inside(mesh, points, hash_resolution, contain_method)
@@ -186,11 +210,17 @@ def combine_samplings(mesh, num_points, sampling_fns):
     Sample points using multiple sampling functions.
     """
     points, occs = [], []
-    for sampling_fn in sampling_fns:
+
+    # # Distribute the points evenly among the sampling functions
+    # points_per_fn = [num_points // len(sampling_fns)] * len(sampling_fns)
+    # points_per_fn[-1] += num_points - sum(points_per_fn)
+
+    for k, sampling_fn in enumerate(sampling_fns):
         p, o = sampling_fn(mesh, num_points // len(sampling_fns), get_occ=True)
         points.append(p)
         occs.append(o)
     return torch.cat(points), torch.cat(occs)
+    # torch.cat(points, dim=1), torch.cat(occs)
 
 
 def normalize_pc(point_cloud, use_center_of_bounding_box=True):
