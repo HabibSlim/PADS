@@ -670,3 +670,15 @@ def set_all_seeds(seed, use_rank=True):
 
     random.seed(seed)
     print("Set seed to %d" % seed)
+
+
+def dump_json(data, path, f_name):
+    """
+    Dump a dict to a JSON  file.
+    Convert all floats to strings.
+    """
+    import json
+
+    path = os.path.join(path, f_name)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=4, sort_keys=True, default=str)

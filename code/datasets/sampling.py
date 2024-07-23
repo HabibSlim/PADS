@@ -5,6 +5,7 @@ Mesh sampling utilities.
 import numpy as np
 import torch
 import trimesh
+from functools import partial
 from util.contains.inside_mesh import is_inside
 
 
@@ -241,3 +242,87 @@ def normalize_pc(point_cloud, use_center_of_bounding_box=True):
     dist = torch.max(torch.sqrt(torch.sum((point_cloud**2), dim=1)))
     point_cloud = point_cloud / dist  # scale the point cloud
     return point_cloud * 8.0
+
+
+"""
+Generating custom sampling functions.
+"""
+
+
+def get_sampling_function(sampling_method, noise_std, contain_method):
+    """
+    Define a sampling function for uniform sampling.
+    """
+    # Defining sampling strategies
+    fn_sample_surface = sample_surface_simple
+    fn_sample_near_surface = partial(
+        sample_near_surface,
+        noise_std=noise_std,
+        contain_method=contain_method,
+    )
+    fn_sample_volume = partial(sample_volume, contain_method=contain_method)
+
+    # Defining the sampling function
+    sampling_fn = {
+        "surface": fn_sample_surface,
+        "near_surface": fn_sample_near_surface,
+        "volume": fn_sample_volume,
+        "volume+surface": partial(
+            combine_samplings,
+            sampling_fns=[
+                fn_sample_volume,
+                fn_sample_surface,
+            ],
+        ),
+        "volume+near_surface": partial(
+            combine_samplings,
+            sampling_fns=[fn_sample_volume, fn_sample_near_surface],
+        ),
+    }
+    assert sampling_method in sampling_fn, "Invalid sampling method!"
+
+    return sampling_fn[sampling_method]
+
+
+def get_sampling_function_dist(sampling_method, face_dist, noise_std, contain_method):
+    """
+    Define a sampling function based on an input distribution.
+    """
+    sample_near_surface_weighted = partial(
+        sample_distribution,
+        face_dist=face_dist,
+        noise_std=noise_std,
+        contain_method=contain_method,
+    )
+    sample_near_surface_uniform = partial(
+        sample_distribution,
+        face_dist=face_dist,
+        noise_std=noise_std,
+        contain_method=contain_method,
+    )
+
+    sampling_fn = {
+        "near_surface_weighted": sample_near_surface_weighted,
+        "near_surface_weighted+uniform": partial(
+            combine_samplings,
+            sampling_fns=[
+                sample_near_surface_weighted,
+                sample_near_surface_uniform,
+            ],
+        ),
+        "volume+near_surface_weighted": partial(
+            combine_samplings,
+            sampling_fns=[sample_volume, sample_near_surface_weighted],
+        ),
+        "volume+near_surface_weighted+uniform": partial(
+            combine_samplings,
+            sampling_fns=[
+                sample_volume,
+                sample_near_surface_weighted,
+                sample_near_surface_uniform,
+            ],
+        ),
+    }
+    assert sampling_method in sampling_fn, "Invalid sampling method!"
+
+    return sampling_fn[sampling_method]

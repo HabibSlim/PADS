@@ -6,14 +6,8 @@ import os
 import numpy as np
 import torch
 import fast_simplification
-from functools import partial
-from datasets.sampling import (
-    sample_surface_simple,
-    sample_near_surface,
-    sample_volume,
-    combine_samplings,
-)
 from datasets.compat import get_class_objs
+from datasets.sampling import get_sampling_function
 from util.misc import CUDAMesh
 from voxelize.preprocess import robust_pcu_to_manifold
 
@@ -55,7 +49,7 @@ class SingleManifoldDataset:
         sampling_method="surface",
         contain_method="occnets",
         max_it=10000,
-        noise_std=0.05,
+        near_surface_noise=0.05,
         decimate=True,
         sample_first=False,
         batch_size=1,
@@ -72,40 +66,16 @@ class SingleManifoldDataset:
         self.decimate = decimate
         self.sample_first = sample_first
         self.batch_size = batch_size
-
-        # Defining sampling strategies
-        fn_sample_surface = partial(sample_surface_simple)
-        fn_sample_near_surface = partial(
-            sample_near_surface,
-            noise_std=noise_std,
-            contain_method=contain_method,
+        self.sampling_fn = get_sampling_function(
+            sampling_method, noise_std=near_surface_noise, contain_method=contain_method
         )
-        fn_sample_volume = partial(sample_volume, contain_method=contain_method)
 
-        self.sampling_fn = {
-            "surface": fn_sample_surface,
-            "near_surface": fn_sample_near_surface,
-            "volume": fn_sample_volume,
-            "volume+surface": partial(
-                combine_samplings,
-                sampling_fns=[
-                    fn_sample_volume,
-                    fn_sample_surface,
-                ],
-            ),
-            "volume+near_surface": partial(
-                combine_samplings,
-                sampling_fns=[fn_sample_volume, fn_sample_near_surface],
-            ),
-        }[sampling_method]
-
-    def __len__(self):
-        return len(self.obj_files)
-
-    def __getitem__(self, idx):
-        if self.mesh is None or self.mesh_idx != idx:
+    def get_mesh(self, idx=None):
+        """
+        Load the mesh from the given index.
+        """
+        if self.mesh is None:
             self.mesh = CUDAMesh.load(self.obj_files[idx])
-            self.mesh_idx = idx
 
             # Print an alert if the mesh is not watertight
             if not self.mesh.is_watertight:
@@ -125,6 +95,16 @@ class SingleManifoldDataset:
                 # The ratio is the percentage of faces to REMOVE
                 ratio = 1 - self.MAX_FACES / len(self.mesh.faces)
                 self.mesh = decimate_mesh(self.mesh, ratio)
+
+        return self.mesh
+
+    def __len__(self):
+        return len(self.obj_files)
+
+    def __getitem__(self, idx):
+        if self.mesh_idx != idx or self.mesh is None:
+            self.mesh_idx = idx
+            self.get_mesh(idx)
 
         # Optionally: first sample n_points first
         # And simply serve the same points for the rest of the iterations

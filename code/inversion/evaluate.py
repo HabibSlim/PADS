@@ -10,9 +10,7 @@ from util.contains.inside_mesh import is_inside
 from losses.rendering_loss import rendering_loss
 
 
-def evaluate_iou_only(
-    ae, obj_original, latents, *, n_queries=2**21, query_method="occnets"
-):
+def evaluate_iou_only(ae, gt_mesh, latents, *, n_queries=2**21, query_method="occnets"):
     """
     Compute IoU between the original object and the reconstructed mesh.
     """
@@ -24,7 +22,7 @@ def evaluate_iou_only(
     pred_occs = s2vs.predict_occupancies(ae, latents, point_queries, n_queries)
 
     # Get ground-truth occupancy for each point
-    gt_occs = is_inside(obj_original, point_queries, query_method=query_method)
+    gt_occs = is_inside(gt_mesh, point_queries, query_method=query_method)
 
     # Compute IoU between predicted and ground-truth occupancies
     iou = iou_occupancies(pred_occs, gt_occs)
@@ -34,7 +32,7 @@ def evaluate_iou_only(
 
 def evaluate_reconstruction(
     ae,
-    obj_original,
+    gt_mesh,
     rec_mesh,
     latents,
     *,
@@ -47,8 +45,8 @@ def evaluate_reconstruction(
     - IoU: Computed using [n_queries] random points sampled from the 3D sp  ace.
     - CD: Computed using [n_queries] points sampled from the object surface.
     """
-    # Sample N_POINTS points from obj_original and rec_mesh
-    pc_original = sample_surface_tpp(obj_original, n_queries_chamfer)
+    # Sample N_POINTS points from gt_mesh and rec_mesh
+    pc_original = sample_surface_tpp(gt_mesh, n_queries_chamfer)
     pc_rec = sample_surface_tpp(rec_mesh, n_queries_chamfer)
     chamfer = chamfer_distance(pc_original, pc_rec)
     f_sc = f_score(gt=pc_original, pred=pc_rec)
@@ -61,15 +59,13 @@ def evaluate_reconstruction(
     pred_occs = s2vs.predict_occupancies(ae, latents, point_queries, n_queries)
 
     # Get ground-truth occupancy for each point
-    gt_occs = is_inside(obj_original, point_queries, query_method=query_method)
+    gt_occs = is_inside(gt_mesh, point_queries, query_method=query_method)
 
     # Compute IoU between predicted and ground-truth occupancies
     iou = iou_occupancies(pred_occs, gt_occs)
 
     # Compute rendering loss
-    mask_loss, depth_loss = rendering_loss(
-        obj_original, rec_mesh, render_resolution=256
-    )
+    mask_loss, depth_loss = rendering_loss(gt_mesh, rec_mesh, render_resolution=256)
 
     results = {
         "iou": iou.item(),
