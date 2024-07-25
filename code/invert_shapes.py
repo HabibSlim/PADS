@@ -283,6 +283,17 @@ def main(args):
             "final": final_metrics,
         }
 
+        # Save the latents to disk
+        # use torch.save
+        torch.save(
+            refined_latents,
+            os.path.join(
+                args.log_dir,
+                "3DCoMPaT_latents",
+                "latents_%s_%d.pt" % (args.active_class, obj_id),
+            ),
+        )
+
         print("Done. Object: [%d] processed." % obj_id)
 
     # Dump the results as a JSON
