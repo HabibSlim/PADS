@@ -84,7 +84,8 @@ class SingleManifoldDataset:
                 robust_pcu_to_manifold(self.obj_files[idx], "/tmp/" + obj_base_name)
                 # Try to load and test if watertight
                 self.mesh = CUDAMesh.load("/tmp/" + obj_base_name)
-                assert self.mesh.is_watertight
+                raise ValueError("Watertight conversion failed!")
+
                 # Replace the original mesh with the watertight one
                 # Write to original file
                 self.mesh.export(self.obj_files[idx])

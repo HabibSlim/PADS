@@ -13,3 +13,5 @@ ckpt/**
 *.out
 tmp/
 tmp/**
+logs/
+logs/**

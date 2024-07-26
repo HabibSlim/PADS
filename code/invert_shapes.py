@@ -137,11 +137,16 @@ def initialize_latents(args, ae, obj_id):
         normalize=False,
         sampling_method="surface",
     )
-    surface_points, _ = next(orig_dataset[obj_id])
-    init_latents = s2vs.encode_pc(ae, surface_points).detach()
-    gt_mesh = orig_dataset.get_mesh(obj_id)
+    if obj_id >= len(orig_dataset.obj_files):
+        return 1, None, None
+    try:
+        surface_points, _ = next(orig_dataset[obj_id])
+        init_latents = s2vs.encode_pc(ae, surface_points).detach()
+        gt_mesh = orig_dataset.get_mesh(obj_id)
+    except ValueError:
+        return 2, None, None
 
-    return init_latents, gt_mesh
+    return 0, init_latents, gt_mesh
 
 
 def get_metrics(ae, gt_mesh, latents, batch_size):
@@ -205,7 +210,14 @@ def main(args):
     for obj_id in args.obj_id_list:
         print("Processing object: [%d]" % obj_id)
         # Initialize the latents, define the ground truth mesh
-        init_latents, gt_mesh = initialize_latents(args, ae, obj_id)
+        err_code, init_latents, gt_mesh = initialize_latents(args, ae, obj_id)
+
+        if err_code == 1:
+            print("Object: [%d] not found. Skipping..." % obj_id)
+            continue
+        elif err_code == 2:
+            print("Object: [%d] cannot be made watertight. Skipping..." % obj_id)
+            continue
 
         # Evaluate the initial reconstruction
         init_metrics = get_metrics(
