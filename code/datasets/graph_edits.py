@@ -472,7 +472,7 @@ class GraphEditsEmbedsChained(data.Dataset):
 
             new_chain_id = chain_root_id + "_%02d" % int(chain_id)
 
-            node_id = int(node_key.split("_")[-1])
+            # node_id = int(node_key.split("_")[-1])
             node_a, node_b = node_key.split("_")
             self.dataset += [
                 {

@@ -224,24 +224,33 @@ def combine_samplings(mesh, num_points, sampling_fns):
     # torch.cat(points, dim=1), torch.cat(occs)
 
 
-def normalize_pc(point_cloud, use_center_of_bounding_box=True):
+def normalize_pc(point_cloud):
     """
     Normalize the point cloud to be in the range [-1, 1] and centered at the origin.
     """
-    min_x, max_x = torch.min(point_cloud[:, 0]), torch.max(point_cloud[:, 0])
-    min_y, max_y = torch.min(point_cloud[:, 1]), torch.max(point_cloud[:, 1])
-    min_z, max_z = torch.min(point_cloud[:, 2]), torch.max(point_cloud[:, 2])
-    # center the point cloud
-    if use_center_of_bounding_box:
-        center = torch.tensor(
-            [(min_x + max_x) / 2, (min_y + max_y) / 2, (min_z + max_z) / 2]
-        )
-    else:
-        center = torch.mean(point_cloud, dim=0)
+    assert point_cloud.dim() == 3
+    min_x, max_x = torch.min(point_cloud[:, :, 0]), torch.max(point_cloud[:, :, 0])
+    min_y, max_y = torch.min(point_cloud[:, :, 1]), torch.max(point_cloud[:, :, 1])
+    min_z, max_z = torch.min(point_cloud[:, :, 2]), torch.max(point_cloud[:, :, 2])
+
+    # Center the point cloud
+    center = torch.tensor(
+        [(min_x + max_x) / 2, (min_y + max_y) / 2, (min_z + max_z) / 2]
+    )
     point_cloud = point_cloud - center.to(point_cloud.device)
-    dist = torch.max(torch.sqrt(torch.sum((point_cloud**2), dim=1)))
-    point_cloud = point_cloud / dist  # scale the point cloud
-    return point_cloud * 8.0
+
+    # Normalize the point cloud to bounding box [-1, 1]
+    dist = torch.max(
+        torch.tensor(
+            [
+                torch.max(point_cloud[:, :, 0]) - torch.min(point_cloud[:, :, 0]),
+                torch.max(point_cloud[:, :, 1]) - torch.min(point_cloud[:, :, 1]),
+                torch.max(point_cloud[:, :, 2]) - torch.min(point_cloud[:, :, 2]),
+            ]
+        )
+    )
+    point_cloud = point_cloud / dist
+    return point_cloud
 
 
 """

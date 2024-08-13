@@ -2,12 +2,15 @@
 Grouping all dataloaders for shape optimization in one place.
 """
 
+import json
 import os
 import numpy as np
-import torch
 import fast_simplification
-from datasets.compat import get_class_objs
-from datasets.sampling import get_sampling_function
+from datasets.metadata import (
+    COMPAT_CLASSES,
+    int_to_hex,
+)
+from datasets.sampling import get_sampling_function, normalize_pc
 from util.misc import CUDAMesh
 from voxelize.preprocess import robust_pcu_to_manifold
 
@@ -54,11 +57,9 @@ class SingleManifoldDataset:
         sample_first=False,
         batch_size=1,
         split="all",
+        to_cuda=True,
     ):
         self.n_points = n_points
-        self.obj_files = get_class_objs(
-            obj_dir=obj_dir, shape_cls=shape_cls, split=split
-        )
         self.mesh_idx = 0
         self.mesh = None
         self.normalize = normalize
@@ -69,13 +70,22 @@ class SingleManifoldDataset:
         self.sampling_fn = get_sampling_function(
             sampling_method, noise_std=near_surface_noise, contain_method=contain_method
         )
+        self.obj_dir = obj_dir
+        self.shape_cls = shape_cls
+        self.split = split
+        self.to_cuda = to_cuda
+
+        self.init_class_objs()
 
     def get_mesh(self, idx=None):
         """
         Load the mesh from the given index.
         """
+        if idx is None:
+            idx = self.mesh_idx
+
         if self.mesh is None:
-            self.mesh = CUDAMesh.load(self.obj_files[idx])
+            self.mesh = CUDAMesh.load(self.obj_files[idx], to_cuda=self.to_cuda)
 
             # Print an alert if the mesh is not watertight
             if not self.mesh.is_watertight:
@@ -83,8 +93,9 @@ class SingleManifoldDataset:
                 obj_base_name = os.path.basename(self.obj_files[idx])
                 robust_pcu_to_manifold(self.obj_files[idx], "/tmp/" + obj_base_name)
                 # Try to load and test if watertight
-                self.mesh = CUDAMesh.load("/tmp/" + obj_base_name)
-                raise ValueError("Watertight conversion failed!")
+                self.mesh = CUDAMesh.load("/tmp/" + obj_base_name, to_cuda=self.to_cuda)
+                if not self.mesh.is_watertight:
+                    raise ValueError("Watertight conversion failed!")
 
                 # Replace the original mesh with the watertight one
                 # Write to original file
@@ -133,5 +144,100 @@ class SingleManifoldDataset:
 
             # Optionally: normalize the point cloud
             if self.normalize:
-                points = self.normalize_pc(torch.tensor(points).float())
+                points = normalize_pc(points)
             yield points, occs
+
+
+class CoMPaTManifoldDataset(SingleManifoldDataset):
+    """
+    Sampling from a 3DCoMPaT manifold mesh dataset.
+    """
+
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        if self.normalize:
+            print(
+                "normalize=True but 3DCoMPaT shapes are already normalized to their bounding boxes."
+            )
+
+    def init_class_objs(self):
+        """
+        Set the list of objects for a given class/split.
+        """
+
+        def join_all(in_dir, files):
+            return [os.path.join(in_dir, f) for f in files]
+
+        compat_cls_code = int_to_hex(COMPAT_CLASSES[self.shape_cls])
+        obj_files = os.listdir(self.obj_dir)
+        # obj_files = [os.path.join(self.obj_dir, f) for f in obj_files]
+        obj_files = [
+            f for f in obj_files if f.endswith(".obj") and compat_cls_code + "_" in f
+        ]
+        obj_files = sorted(obj_files)
+
+        if self.split == "all":
+            self.obj_files = join_all(self.obj_dir, obj_files)
+            return
+
+        # Open the split metadata
+        pwd = os.path.dirname(os.path.realpath(__file__))
+        split_dict = json.load(open(os.path.join(pwd, "CoMPaT", "split.json")))
+
+        # Filter split meshes
+        obj_files = [f for f in obj_files if f.split(".")[0] in split_dict[self.split]]
+
+        self.obj_files = join_all(self.obj_dir, obj_files)
+
+
+class PartNetManifoldDataset(SingleManifoldDataset):
+    """
+    Sampling from a PartNet manifold mesh dataset.
+    """
+
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+
+    def init_class_objs(self):
+        """
+        Get the list of objects for a given class/split.
+        """
+
+        def join_all(in_dir, files):
+            return sorted([os.path.join(in_dir, f) for f in files])
+
+        # List of fully or almost-fully segmented shapes
+        pwd = os.path.dirname(os.path.realpath(__file__))
+        full_segment_shapes = json.load(
+            open(os.path.join(pwd, "PartNet", "full_segment_shapes.json"))
+        )
+        full_segment_shapes = set(full_segment_shapes)
+
+        obj_files = os.listdir(self.obj_dir)
+        obj_files = [f for f in obj_files if f.split(".")[0] in full_segment_shapes]
+        obj_files = [f for f in obj_files if f.endswith(".obj")]
+
+        if self.shape_cls == "all":
+            self.obj_files = join_all(self.obj_dir, obj_files)
+            return
+
+        # Open the split metadata
+        model_map = json.load(open(os.path.join(pwd, "PartNet", "shape_classes.json")))
+
+        # Filter split meshes
+        avail_models = set([os.path.basename(f).split(".")[0] for f in obj_files])
+        class_models = set(model_map[self.shape_cls])
+        obj_files = [
+            os.path.join(self.obj_dir, model_id + ".obj")
+            for model_id in class_models & avail_models
+        ]
+
+        self.obj_files = join_all(self.obj_dir, obj_files)

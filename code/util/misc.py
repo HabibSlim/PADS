@@ -682,3 +682,22 @@ def dump_json(data, path, f_name):
     path = os.path.join(path, f_name)
     with open(path, "w") as f:
         json.dump(data, f, indent=4, sort_keys=True, default=str)
+
+
+def normalize_trimesh(mesh):
+    """
+    Normalize a trimesh object to fit inside a unit cube.
+    """
+    # Get the bounding box
+    bbox = mesh.bounding_box
+    scale_factor = 1.0 / np.max(bbox.extents)
+    center = bbox.centroid
+
+    # Create a transformation matrix for centering/scaling
+    translation = trimesh.transformations.translation_matrix(-center)
+    scaling = trimesh.transformations.scale_matrix(scale_factor)
+
+    # Combine the transformations
+    transform = np.dot(scaling, translation)
+
+    return mesh.apply_transform(transform)
