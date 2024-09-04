@@ -21,6 +21,27 @@ def default(val, d):
     return val if exists(val) else d
 
 
+def fps_subsample(pc, ratio, return_idx=False):
+    """
+    Subsample a point cloud using farthest point sampling.
+    """
+    B, N, D = pc.shape
+    flattened = pc.view(B * N, D)
+
+    batch = torch.arange(B).to(pc.device)
+    batch = torch.repeat_interleave(batch, N)
+
+    pos = flattened
+    idx = fps(pos, batch, ratio=ratio)
+
+    sampled_pc = pos[idx]
+    sampled_pc = sampled_pc.view(B, -1, 3)
+
+    if return_idx:
+        return sampled_pc, idx
+    return sampled_pc
+
+
 def cache_fn(f):
     cache = None
 
@@ -287,22 +308,8 @@ class AutoEncoder(nn.Module):
         B, N, D = pc.shape
         assert N == self.num_inputs
 
-        ###### fps
-        flattened = pc.view(B * N, D)
-
-        batch = torch.arange(B).to(pc.device)
-        batch = torch.repeat_interleave(batch, N)
-
-        pos = flattened
-
         ratio = 1.0 * self.num_latents / self.num_inputs
-
-        idx = fps(pos, batch, ratio=ratio)
-
-        sampled_pc = pos[idx]
-        sampled_pc = sampled_pc.view(B, -1, 3)
-        ######
-
+        sampled_pc = fps_subsample(pc, ratio)
         sampled_pc_embeddings = self.point_embed(sampled_pc)
 
         pc_embeddings = self.point_embed(pc)

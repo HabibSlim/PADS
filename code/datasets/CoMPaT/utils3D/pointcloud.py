@@ -1,6 +1,7 @@
-""""
+""" "
 Utility functions for pointcloud sampling.
 """
+
 import logging
 from collections import defaultdict
 
@@ -11,23 +12,26 @@ logger = logging.getLogger("trimesh")
 logger.setLevel(logging.ERROR)
 
 
-def map_meshes(obj, part_to_idx, part_remap, part_to_mat_idx=None):
+def map_meshes(obj, part_to_idx, part_remap, part_to_mat_idx=None, get_instances=False):
     """
-    Baking each mesh in the model and mapping them from part names. 
+    Baking each mesh in the model and mapping them from part names.
     """
+
     def clean_part(part):
         """
         Removing the hexadecimal code added to mesh groups by trimesh.
         """
+
         def is_hex(s):
             try:
                 int(s, 16)
                 return True
             except ValueError:
                 return False
-        part = part.split('_')
+
+        part = part.split("_")
         j = len(part) - 1
-        return "_".join([p for k,p in enumerate(part) if not (k==j and is_hex(p))])
+        return "_".join([p for k, p in enumerate(part) if not (k == j and is_hex(p))])
 
     # Generating mesh map
     mesh_map = defaultdict(list)
@@ -42,8 +46,11 @@ def map_meshes(obj, part_to_idx, part_remap, part_to_mat_idx=None):
         if part_remap is not None:
             part_name = part_remap[part_name]
         if part_name not in part_to_idx:
-            raise ValueError("Part [{}] from [{}] not found in part_to_idx"
-                             .format(part_name, part_raw))
+            raise ValueError(
+                "Part [{}] from [{}] not found in part_to_idx".format(
+                    part_name, part_raw
+                )
+            )
         part_id = part_to_idx[part_name]
 
         # Fetching mesh and applying transform
@@ -56,10 +63,13 @@ def map_meshes(obj, part_to_idx, part_remap, part_to_mat_idx=None):
         if part_to_mat_idx is None:
             mesh_map[part_id] += [part_mesh]
         else:
-            mesh_map[part_id,part_to_mat_idx[part_name]] += [part_mesh]
+            mesh_map[part_id, part_to_mat_idx[part_name]] += [part_mesh]
 
+    # Returning mesh map
+    if get_instances:
+        return mesh_map
 
-    # Concatenating duplicate nodes
+    # Concatenating nodes with the same part name (semantic segmentation)
     for part_tuple, mesh_list in mesh_map.items():
         if len(mesh_list) == 1:
             mesh_map[part_tuple] = mesh_list[0]
@@ -82,10 +92,13 @@ def map_meshes(obj, part_to_idx, part_remap, part_to_mat_idx=None):
 """
 Basic pointcloud manipulations.
 """
+
+
 def to_z_up(p):
     p[:, [2, 1]] = p[:, [1, 2]]
-    p[:,1] *= -1
+    p[:, 1] *= -1
     return p
+
 
 def to_numpy(mat, type_n, conv_z_up=False):
     ret_mat = np.array(mat).astype(type_n)
@@ -94,11 +107,9 @@ def to_numpy(mat, type_n, conv_z_up=False):
     return ret_mat
 
 
-def sample_pointcloud_multiparts(n_points,
-                                 mapped_meshes,
-                                 sample_color,
-                                 get_normals,
-                                 get_mats=False):
+def sample_pointcloud_multiparts(
+    n_points, mapped_meshes, sample_color, get_normals, get_mats=False
+):
     """
     Sample a pointcloud across multiple parts, without mesh fusing.
       (solves a bug in trimesh.concatenate creating visual artifacts)
@@ -109,18 +120,20 @@ def sample_pointcloud_multiparts(n_points,
     to_remove = []
     for part_tuple, part_mesh in mapped_meshes.items():
         if part_mesh.visual.uv is None:
-            logger.warning("Mesh [{}] has no UV coordinates. "
-                           "Skipping this mesh.".format(part_tuple))
+            logger.warning(
+                "Mesh [{}] has no UV coordinates. " "Skipping this mesh.".format(
+                    part_tuple
+                )
+            )
             # Remove the mesh from the map
             to_remove += [part_tuple]
     for part_tuple in to_remove:
         del mapped_meshes[part_tuple]
 
-
     # Computing the number of points to sample for each part
     mesh_areas = [mesh.area for _, mesh in mapped_meshes.items()]
-    area_ratios = np.array(mesh_areas)/np.sum(mesh_areas)
-    mesh_points = (area_ratios*n_points).astype("int32")
+    area_ratios = np.array(mesh_areas) / np.sum(mesh_areas)
+    mesh_points = (area_ratios * n_points).astype("int32")
     mesh_points[-1] = n_points - np.sum(mesh_points[:-1])
 
     # Sampling points on each mesh
@@ -132,10 +145,9 @@ def sample_pointcloud_multiparts(n_points,
             part_id, mat_id = part_tuple
         else:
             part_id = part_tuple
-        sampled = \
-            trimesh.sample.sample_surface(part_mesh,
-                                          count=mesh_points,
-                                          sample_color=sample_color)
+        sampled = trimesh.sample.sample_surface(
+            part_mesh, count=mesh_points, sample_color=sample_color
+        )
 
         p_xyz += [sampled[0]]
         p_seg += [np.full(mesh_points, part_id)]
@@ -147,13 +159,13 @@ def sample_pointcloud_multiparts(n_points,
             face_ids = sampled[1]
             p_norm += [part_mesh.face_normals[face_ids]]
 
-    p_xyz = to_numpy(np.concatenate(p_xyz), 'float32', conv_z_up=True)
+    p_xyz = to_numpy(np.concatenate(p_xyz), "float32", conv_z_up=True)
     p_seg = np.concatenate(p_seg)
 
     # Setting up return tuple
     ret = [p_xyz, p_seg]
     if get_normals:
-        p_norm = to_numpy(np.concatenate(p_norm), 'float32', conv_z_up=True)
+        p_norm = to_numpy(np.concatenate(p_norm), "float32", conv_z_up=True)
         ret += [p_norm]
 
     if get_mats:
@@ -161,7 +173,7 @@ def sample_pointcloud_multiparts(n_points,
         ret += [p_mat]
 
     if sample_color:
-        p_col = to_numpy(np.concatenate(p_col), 'float32')
+        p_col = to_numpy(np.concatenate(p_col), "float32")
         # Remove alpha channel
         p_col = p_col[:, :3]
         ret += [p_col]
@@ -169,37 +181,36 @@ def sample_pointcloud_multiparts(n_points,
     return ret
 
 
-def sample_pointcloud(in_mesh,
-                      n_points,
-                      sample_color=False,
-                      shape_only=False,
-                      get_normals=False,
-                      get_mats=False):
+def sample_pointcloud(
+    in_mesh,
+    n_points,
+    sample_color=False,
+    shape_only=False,
+    get_normals=False,
+    get_mats=False,
+):
     """
     Sampling a pointcloud form a mesh map.
     """
     # Sampling shape-only point cloud
     if shape_only:
         if sample_color:
-            ret = sample_pointcloud_multiparts(n_points,
-                                               in_mesh,
-                                               sample_color,
-                                               get_normals)
+            ret = sample_pointcloud_multiparts(
+                n_points, in_mesh, sample_color, get_normals
+            )
             return [ret[0]] + ret[2:]
 
         p_xyz, face_ids = trimesh.sample.sample_surface(in_mesh, count=n_points)
-        p_xyz = to_numpy(p_xyz, 'float32', conv_z_up=True)
+        p_xyz = to_numpy(p_xyz, "float32", conv_z_up=True)
 
         if get_normals:
             p_norm = in_mesh.face_normals[face_ids]
-            p_norm = to_numpy(np.concatenate(p_norm), 'float32', conv_z_up=True)
+            p_norm = to_numpy(np.concatenate(p_norm), "float32", conv_z_up=True)
 
             return p_xyz, p_norm
         return p_xyz
-    
+
     # Sampling colored pointcloud
-    return sample_pointcloud_multiparts(n_points,
-                                        in_mesh,
-                                        sample_color,
-                                        get_normals,
-                                        get_mats)
+    return sample_pointcloud_multiparts(
+        n_points, in_mesh, sample_color, get_normals, get_mats
+    )

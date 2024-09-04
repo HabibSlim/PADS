@@ -15,6 +15,7 @@ def evaluate_rendering_loss(
     ae,
     latents,
     gt_mesh,
+    *,
     render_resolution=256,
     grid_density=512,
     batch_size=128**3,

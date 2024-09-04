@@ -48,7 +48,7 @@ class CompatLoader3D:
         shuffle=False,
     ):
         # Parameters check
-        if split not in ["train", "test", "valid"]:
+        if split not in ["train", "test", "valid", "all"]:
             raise RuntimeError("Invalid split: [%s]." % split)
         if semantic_level not in ["fine", "medium", "coarse"]:
             raise RuntimeError("Invalid semantic level: [%s]." % split)
@@ -105,7 +105,13 @@ class CompatLoader3D:
         # ====================================================================================
 
         # Indexing 3D models
-        split_models = open_meta(meta_dir, "split.json")[split]
+        if split != "all":
+            split_models = open_meta(meta_dir, "split.json")[split]
+        else:
+            train_models = open_meta(meta_dir, "split.json")["train"]
+            valid_models = open_meta(meta_dir, "split.json")["valid"]
+            test_models = open_meta(meta_dir, "split.json")["test"]
+            split_models = train_models + valid_models + test_models
         self._list_models(split_models)
 
         # Shuffling indices
@@ -134,12 +140,17 @@ class CompatLoader3D:
         shape_ids.sort()
         return shape_ids
 
-    def _get_mesh_map(self, obj, shape_id, shape_label):
+    def _get_mesh_map(self, obj, shape_id, shape_label, get_instances=False):
         remap_dict = None
         if self.part_remap is not None:
             remap_dict = self.part_remap[shape_label]
         try:
-            return pc.map_meshes(obj, self.parts_to_idx, remap_dict)
+            return pc.map_meshes(
+                obj,
+                part_to_idx=self.parts_to_idx,
+                part_remap=remap_dict,
+                get_instances=get_instances,
+            )
         except (ValueError, AttributeError):
             raise ("Error while mapping meshes for shape %s" % shape_id) from None
 
@@ -258,6 +269,49 @@ class ShapeLoader(CompatLoader3D):
                 return shape_id, shape_label, sample
             else:
                 return [shape_id, shape_label] + [s for s in sample]
+
+    def get_model_index(self, model_id):
+        """
+        Return the index for a given model ID.
+        """
+        return self.shape_ids.index(model_id)
+
+
+class SegmentedMeshLoader(ShapeLoader):
+    """
+    Unsylized 3D shape loader.
+
+    Args:
+    ----
+        ...:  See CompatLoader3D
+    """
+
+    def __init__(self, get_instances=False, **kwargs):
+        kwargs["load_mesh"] = True
+        super().__init__(**kwargs)
+        self.get_instances = get_instances
+
+    def __getitem__(self, index):
+        """
+        Get raw 3D shape given index.
+        """
+        shape_id = self.shape_ids[index]
+        shape_label = self.shape_labels[index]
+
+        gltf_f = gltf.load_gltf(
+            shape_id, zip_file=self.zip_f, models_dir=self.ZIP_MODELS_DIR
+        )
+        gltf_f = gltf.apply_placeholder(gltf_f, textures_file_map=self.textures_map)
+        obj = trimesh.load(
+            gltf_f,
+            file_type=".gltf",
+            force="mesh" if self.shape_only else "scene",
+            resolver=gltf.ZipTextureResolver(zip_f=self.zip_f),
+        )
+
+        return self._get_mesh_map(
+            obj, shape_id, shape_label, get_instances=self.get_instances
+        )
 
 
 class StylizedShapeLoader(CompatLoader3D):

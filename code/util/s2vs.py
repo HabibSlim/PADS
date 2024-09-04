@@ -6,9 +6,10 @@ import mcubes
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torch_cluster import fps
 from contextlib import nullcontext
-from util.misc import CUDAMesh
-import models.s2vs as ae_mods
+from util.mesh import CUDAMesh
+import models.s2vs as s2vs
 
 
 def load_model(model_name, ckpt_path, device, torch_compile=True):
@@ -18,7 +19,7 @@ def load_model(model_name, ckpt_path, device, torch_compile=True):
     print("Loading autoencoder [%s]." % ckpt_path)
 
     # Instantiate autoencoder
-    ae = ae_mods.__dict__[model_name]()
+    ae = s2vs.__dict__[model_name]()
     ae.load_state_dict(torch.load(ckpt_path, map_location="cpu")["model"])
 
     # Compile using torch.compile
@@ -123,13 +124,17 @@ def decode_latents(ae, latent, grid_density=128, batch_size=None, smooth_volume=
 
 
 @torch.inference_mode()
-def encode_pc(ae, pc):
+def encode_pc(ae, pc, fps_sampling=False):
     """
     Encode a point cloud using the autoencoder.
     """
     new_pc = pc
     if pc.shape[1] > ae.num_inputs:
-        new_pc = pc[:, np.random.choice(pc.shape[1], ae.num_inputs, replace=False)]
+        if fps_sampling:
+            ratio = ae.num_inputs / pc.shape[1]
+            new_pc = s2vs.fps_subsample(pc, ratio)
+        else:
+            new_pc = pc[:, np.random.choice(pc.shape[1], ae.num_inputs, replace=False)]
     _, x_a = ae.encode(new_pc)
     return x_a
 

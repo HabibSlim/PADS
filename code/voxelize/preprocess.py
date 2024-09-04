@@ -2,63 +2,16 @@
 Utility functions to prepare voxelized meshes for training.
 """
 
-import contextlib
-import sys
 import os
 import torch
 import trimesh
 import numpy as np
 import point_cloud_utils as pcu
+from util.misc import stdout_redirected, stderr_redirected
 from scipy.ndimage import zoom
 from .flood_fill.fill_voxels import fill_inside_voxels_cpu
 
 BIN_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bin")
-
-
-@contextlib.contextmanager
-def stdout_redirected(to=os.devnull):
-    """
-    Redirect standard output (by default: to os.devnull).
-    Useful to silence the noisy output of Blender.
-    """
-    fd = sys.stdout.fileno()
-
-    def _redirect_stdout(to):
-        sys.stdout.close()  # + implicit flush()
-        os.dup2(to.fileno(), fd)  # fd writes to 'to' file
-        sys.stdout = os.fdopen(fd, "w")  # Python writes to fd
-
-    with os.fdopen(os.dup(fd), "w") as old_stdout:
-        with open(to, "w") as file:
-            _redirect_stdout(to=file)
-        try:
-            yield  # allow code to be run with the redirected stdout
-        finally:
-            _redirect_stdout(to=old_stdout)  # restore stdout.
-            # buffering and flags such as
-            # CLOEXEC may be different
-
-
-@contextlib.contextmanager
-def stderr_redirected(to=os.devnull):
-    """
-    Redirect standard error (by default: to os.devnull).
-    Useful to silence the noisy output of Blender.
-    """
-    fd = sys.stderr.fileno()
-
-    def _redirect_stderr(to):
-        sys.stderr.close()
-        os.dup2(to.fileno(), fd)
-        sys.stderr = os.fdopen(fd, "w")
-
-    with os.fdopen(os.dup(fd), "w") as old_stderr:
-        with open(to, "w") as file:
-            _redirect_stderr(to=file)
-        try:
-            yield
-        finally:
-            _redirect_stderr(to=old_stderr)
 
 
 def get_extent(test_vox):
@@ -217,15 +170,54 @@ def mesh_to_manifold(obj_model, out_file, depth=8, extra_params=""):
     )
 
 
+def mesh_to_manifold_plus__path(obj_model, out_file, depth=8, extra_params=""):
+    """
+    Convert the input mesh to a manifold mesh using ManifoldPlus.
+    """
+    os.system(
+        "%s/manifold_plus --input %s --output %s --depth %d %s"
+        % (BIN_PATH, obj_model, out_file, depth, extra_params)
+    )
+
+
+def mesh_to_manifold_plus(obj, depth=8, extra_params=""):
+    """
+    Convert the input mesh to a manifold mesh using ManifoldPlus.
+    """
+    # Save the input mesh to a temporary file
+    randint = np.random.randint(1e6)
+    obj_model = "/tmp/tmp_%d.obj" % randint
+    obj.export(obj_model)
+
+    out_model = "/tmp/tmpout_%d.obj" % randint
+
+    # Call the ManifoldPlus binary
+    os.system(
+        "%s/manifold_plus --input %s --output %s --depth %d %s"
+        % (BIN_PATH, obj_model, out_model, depth, extra_params)
+    )
+
+    # Load the output mesh
+    return trimesh.load(out_model)
+
+
 def robust_pcu_to_manifold(obj_model, out_file, resolution=100_000):
     """
     Robust version of ManifoldPlus with lessened fidelity.
     """
-    obj = trimesh.load_mesh(obj_model)
-    v, f = obj.vertices, obj.faces
+    v, f = obj_model.vertices, obj_model.faces
     vw, fw = pcu.make_mesh_watertight(v, f, resolution)
     new_obj = trimesh.Trimesh(vw, fw)
     new_obj.export(out_file)
+
+
+def robust_pcu_to_manifold_in_memory(obj_model, resolution=100_000):
+    """
+    Robust version of ManifoldPlus with lessened fidelity.
+    """
+    v, f = obj_model.vertices, obj_model.faces
+    vw, fw = pcu.make_mesh_watertight(v, f, resolution)
+    return trimesh.Trimesh(vw, fw)
 
 
 def process_mesh(obj_model, out_path, out_path_vox, flood_fill=False):

@@ -11,9 +11,7 @@ from datasets.metadata import (
     COMPAT_TRANSFORMS,
 )
 
-METADATA_DIR = "/ibex/user/slimhy/3DCoMPaT/3DCoMPaT-v2/metadata"
 ZIP_SRC = "/ibex/user/slimhy/surfaces.zip"
-ZIP_PATH = "/ibex/user/slimhy/3DCoMPaT/3DCoMPaT_ZIP.zip"
 
 
 def shapenet_iterator(shape_cls):
@@ -35,13 +33,13 @@ def shapenet_iterator(shape_cls):
                 yield data["points"].astype(np.float32)
 
 
-def compat_iterator(shape_cls, num_points):
+def compat_iterator(meta_dir, zip_path, shape_cls, num_points):
     """
     3DCoMPaT iterator.
     """
     train_dataset = compat3D.ShapeLoader(
-        zip_path=ZIP_PATH,
-        meta_dir=METADATA_DIR,
+        zip_path=zip_path,
+        meta_dir=meta_dir,
         split="train",
         n_points=num_points,
         shuffle=True,

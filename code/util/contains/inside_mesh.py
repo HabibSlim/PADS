@@ -46,7 +46,8 @@ class MeshIntersector:
     MeshIntersector class to check if points are inside a mesh.
     """
 
-    def __init__(self, mesh, resolution=512, device="cuda"):
+    def __init__(self, mesh, resolution=512):
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         triangles = mesh.vertices.squeeze()[mesh.faces].double()
         n_tri = triangles.shape[0]
 

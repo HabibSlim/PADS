@@ -26,6 +26,24 @@ def face_areas_normals(vertices, faces):
 
 
 @torch.inference_mode()
+def face_areas(vertices, faces):
+    """
+    Get face areas for a batch of meshes.
+    """
+    # print(vertices.shape, faces[:, 1].min(), faces[:, 1].max())
+    vA = vertices[:, faces[:, 1], :]
+    vA -= vertices[:, faces[:, 0], :]
+    vB = vertices[:, faces[:, 2], :] - vertices[:, faces[:, 1], :]
+    face_normals = torch.cross(
+        vA,
+        vB,
+        dim=2,
+    )
+    face_areas = torch.norm(face_normals, dim=2)
+    return 0.5 * face_areas
+
+
+@torch.inference_mode()
 def sample_surface_tpp(mesh, num_points, face_dist=None):
     """
     Sample points on the surface of a mesh using Triangle Point Picking.
@@ -126,7 +144,7 @@ def sample_surface(mesh, num_points, sample_method="triangle_point_picking"):
             new_points = sample_surface_trimesh(mesh, num_points)
             points = np.concatenate([points, new_points[: num_points - len(points)]])
             np.random.shuffle(points)
-            points = torch.tensor(points).float().cuda()
+            points = torch.tensor(points).float()
         return points.unsqueeze(0)
 
 
@@ -135,7 +153,6 @@ def sample_cube(num_points):
     Sample points in the unit cube.
     """
     points = torch.randn((1, num_points, 3))
-    points = points.cuda()
     return points
 
 
@@ -155,7 +172,7 @@ def sample_distribution(
     points = sample_surface_tpp(gt_mesh, num_points, face_dist=face_dist).detach()
 
     # Add noise to the points
-    points += torch.randn(num_points, 3).cuda() * noise_std
+    points += torch.randn(num_points, 3).to(points.device) * noise_std
 
     if get_occ:
         occs = is_inside(gt_mesh, points, hash_resolution, contain_method)
@@ -200,7 +217,7 @@ def sample_near_surface(
     """
     points = sample_surface(mesh, num_points)
     # Add noise to the points
-    points += torch.randn(num_points, 3).cuda() * noise_std
+    points += torch.randn(num_points, 3).to(points.device) * noise_std
     occs = is_inside(mesh, points, hash_resolution, contain_method)
 
     return points, occs
@@ -218,6 +235,7 @@ def combine_samplings(mesh, num_points, sampling_fns):
 
     for k, sampling_fn in enumerate(sampling_fns):
         p, o = sampling_fn(mesh, num_points // len(sampling_fns), get_occ=True)
+        o = o.to(p.device)
         points.append(p)
         occs.append(o)
     return torch.cat(points), torch.cat(occs)
@@ -275,6 +293,10 @@ def get_sampling_function(sampling_method, noise_std, contain_method):
     sampling_fn = {
         "surface": fn_sample_surface,
         "near_surface": fn_sample_near_surface,
+        "surface+near_surface": partial(
+            combine_samplings,
+            sampling_fns=[fn_sample_surface, fn_sample_near_surface],
+        ),
         "volume": fn_sample_volume,
         "volume+surface": partial(
             combine_samplings,

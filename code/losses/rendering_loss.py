@@ -4,7 +4,7 @@ Defining the rendering loss used for shape inversion.
 
 import torch
 import losses.diffrender as diffrender
-from util.misc import CUDAMesh
+from util.mesh import CUDAMesh
 
 
 def rendering_loss(gt_mesh, rec_mesh, render_resolution, n_views=16, device="cuda"):
