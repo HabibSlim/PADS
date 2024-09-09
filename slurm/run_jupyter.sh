@@ -1,13 +1,14 @@
 #!/bin/bash --login
-#SBATCH --time=20:00:00
+#SBATCH --time=10:00:00
 #SBATCH --nodes=1
 #SBATCH --mem=128G
 #SBATCH --partition=batch
-#SBATCH --gres=gpu:a100:1
+#SBATCH --gres=gpu:v100:1
 #SBATCH --job-name=jupyter_nb
 #SBATCH --mail-type=ALL
 #SBATCH --output=out/jupyter-nb.out
 #SBATCH --error=out/jupyter-nb.err 
+##SBATCH --account conf-iclr-2025.10.01-elhosemh
 
 # Load environment which has Jupyter installed. It can be one of the following:
 # - Machine Learning module installed on the system (module load machine_learning)

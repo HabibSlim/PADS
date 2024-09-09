@@ -18,6 +18,8 @@ import torch
 import torch.distributed as dist
 import trimesh
 from torch import inf
+from functools import wraps
+from torch_cluster import fps
 
 
 """
@@ -646,3 +648,63 @@ def normalize_trimesh(mesh):
     transform = np.dot(scaling, translation)
 
     return mesh.apply_transform(transform)
+
+
+"""
+Sampling/modules utilities.
+"""
+
+
+def count_params(module, human_readable=True):
+    """
+    Count the number of parameters in a module.
+    """
+    total_count = sum(p.numel() for p in module.parameters() if p.requires_grad)
+    if human_readable:
+        return "{:,}".format(total_count)
+    return total_count
+
+
+def exists(val):
+    return val is not None
+
+
+def default(val, d):
+    return val if exists(val) else d
+
+
+def fps_subsample(pc, ratio, return_idx=False):
+    """
+    Subsample a point cloud using farthest point sampling.
+    """
+    B, N, D = pc.shape
+    flattened = pc.view(B * N, D)
+
+    batch = torch.arange(B).to(pc.device)
+    batch = torch.repeat_interleave(batch, N)
+
+    pos = flattened
+    idx = fps(pos, batch, ratio=ratio)
+
+    sampled_pc = pos[idx]
+    sampled_pc = sampled_pc.view(B, -1, 3)
+
+    if return_idx:
+        return sampled_pc, idx
+    return sampled_pc
+
+
+def cache_fn(f):
+    cache = None
+
+    @wraps(f)
+    def cached_fn(*args, _cache=True, **kwargs):
+        if not _cache:
+            return f(*args, **kwargs)
+        nonlocal cache
+        if cache is not None:
+            return cache
+        cache = f(*args, **kwargs)
+        return cache
+
+    return cached_fn

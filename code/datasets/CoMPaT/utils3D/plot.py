@@ -9,15 +9,14 @@ from mpl_toolkits.mplot3d.axes3d import Axes3D
 import numpy as np
 import trimesh
 from PIL import Image
+from datasets.metadata import COMPAT_COARSE_PARTS, COMPAT_FINE_PARTS
 
 
 # Hardcoding the number of parts
 # for the demo visualizations
-COARSE_PARTS = 43
-FINE_PARTS = 275
 
-COARSE_RGB_RANGE = np.linspace(0, 250, COARSE_PARTS, dtype=int)
-FINE_RGB_RANGE = np.linspace(0, 250, FINE_PARTS, dtype=int)
+COARSE_RGB_RANGE = np.linspace(0, 250, COMPAT_COARSE_PARTS, dtype=int)
+FINE_RGB_RANGE = np.linspace(0, 250, COMPAT_FINE_PARTS, dtype=int)
 
 np.random.seed(0)
 np.random.shuffle(COARSE_RGB_RANGE)
