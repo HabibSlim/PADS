@@ -21,7 +21,7 @@ class ShapeLatentDataset(Dataset):
     PART_CAP = 24
 
     def __init__(
-        self, data_dir, exclude_types=None, cap_parts=True, shuffle_parts=True
+        self, data_dir, exclude_types=None, cap_parts=True, shuffle_parts=True, class_code=None
     ):
         self.exclude_types = set(exclude_types) if exclude_types else set()
         self.shuffle_parts = shuffle_parts
@@ -34,6 +34,13 @@ class ShapeLatentDataset(Dataset):
         final_list = []
         for f in file_list:
             file_type = "_".join(f.split("_")[2:-1])
+            
+            # Filter by class code
+            valid_cls = class_code is None or f.startswith(class_code)
+            if not valid_cls:
+                continue
+                
+            # Filter by file type
             if file_type not in self.exclude_types:
                 bb_coords_f = f + "_part_bbs"
                 bb_labels_f = f + "_part_labels"
