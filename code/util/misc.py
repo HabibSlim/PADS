@@ -708,3 +708,105 @@ def cache_fn(f):
         return cache
 
     return cached_fn
+
+
+"""
+Bounding-box related utilities.
+"""
+
+
+def find_face_centers(triangles):
+    """
+    Find the center of each face in a list of triangles.
+    """
+    # Ensure input is a numpy array
+    triangles = np.array(triangles)
+    
+    # Check input shape
+    if triangles.shape[1:] != (3, 3):
+        raise ValueError("Input should be of shape (N, 3, 3)")
+    
+    # Calculate pairwise distances for each triangle
+    a = triangles[:, 0, :]
+    b = triangles[:, 1, :]
+    c = triangles[:, 2, :]
+    
+    dist_ab = np.linalg.norm(a - b, axis=1)
+    dist_ac = np.linalg.norm(a - c, axis=1)
+    dist_bc = np.linalg.norm(b - c, axis=1)
+    
+    # Find the indices of the two furthest points
+    max_dist = np.maximum(dist_ab, np.maximum(dist_ac, dist_bc))
+    
+    # Calculate midpoints based on which distance is largest
+    midpoints = np.where(max_dist[:, None] == dist_ab[:, None],
+                         (a + b) / 2,
+                         np.where(max_dist[:, None] == dist_ac[:, None],
+                                  (a + c) / 2,
+                                  (b + c) / 2))
+    
+    return midpoints
+
+
+def remove_flipped_points(points):
+    """
+    Remove flipped points from a list of vectors.
+    """
+    # Ensure points is a 2D numpy array of shape (N, 3)
+    points = np.asarray(points)
+    if points.ndim != 2 or points.shape[1] != 3:
+        raise ValueError("Input must be a 2D array with shape (N, 3)")
+
+    n = len(points)
+    mask = np.ones(n, dtype=bool)
+
+    # Compute the dot product of each point with all subsequent points
+    dot_products = np.einsum('ij,kj->ik', points, points)
+
+    # Compute the squared magnitudes
+    magnitudes_squared = np.sum(points**2, axis=1)
+
+    for i in range(n - 1):
+        if not mask[i]:
+            continue
+        # Check if any subsequent point is a flipped version
+        flipped = np.isclose(dot_products[i, i+1:], -magnitudes_squared[i], atol=1e-8)
+        # Mark flipped points for removal
+        mask[i+1:][flipped] = False
+
+    return points[mask]
+
+
+def flip_vecs(vecs):
+    """
+    Flip vectors to ensure they are all pointing in the same direction.
+    """
+    for v in vecs:
+        if v[0] < 0:
+            v *= -1
+    return vecs
+
+
+def get_bb_vecs(bb_prim):
+    """
+    Compute the vectors directing outwards from the centroid of a bounding box primitive.
+    """
+    bb_verts = bb_prim.vertices
+    vert_array = np.array(bb_verts)
+
+    # Get a list of 3 points for each face triangle
+    triangles = vert_array[bb_prim.faces]
+    midpoints = find_face_centers(triangles)
+    face_centers = np.unique(midpoints, axis=0)
+
+    assert face_centers.shape[0] == 6
+    
+    # Filter out duplicate vectors
+    centroid = np.mean(bb_verts, axis=0)
+    vecs = face_centers - centroid
+    vecs = remove_flipped_points(vecs)
+    
+    # Ensure vectors are pointing in the same direction
+    vecs = flip_vecs(vecs)
+    
+    return centroid, vecs

@@ -21,25 +21,40 @@ class ShapeLatentDataset(Dataset):
     PART_CAP = 24
 
     def __init__(
-        self, data_dir, exclude_types=None, cap_parts=True, shuffle_parts=True, class_code=None
+        self,
+        data_dir,
+        exclude_types=None,
+        cap_parts=True,
+        shuffle_parts=True,
+        class_code=None,
+        split=None,
     ):
         self.exclude_types = set(exclude_types) if exclude_types else set()
         self.shuffle_parts = shuffle_parts
 
+        # Load file list
         file_list = "capped_list.json" if cap_parts else "full_list.json"
         file_list = json.load(open(os.path.join(data_dir, file_list)))
         self.latents_dir = os.path.join(data_dir, "latents")
         self.bbs_dir = os.path.join(data_dir, "bounding_boxes")
 
+        # Load the split
+        if split is not None:
+            split = json.load(open(os.path.join(data_dir, "split_" + split + ".json")))
+            split = set(split)
+
         final_list = []
         for f in file_list:
+            if split is not None and f[:6] not in split:
+                continue
+
             file_type = "_".join(f.split("_")[2:-1])
-            
+
             # Filter by class code
             valid_cls = class_code is None or f.startswith(class_code)
             if not valid_cls:
                 continue
-                
+
             # Filter by file type
             if file_type not in self.exclude_types:
                 bb_coords_f = f + "_part_bbs"
@@ -240,7 +255,12 @@ class ComposedPairedShapesLoader:
 
     def __init__(self, dataset, batch_size, pair_types_list, num_workers, **kwargs):
         self.loaders = [
-            PairedShapesLoader(dataset, batch_size, pair_types, num_workers, **kwargs)
+            (
+                pair_types,
+                PairedShapesLoader(
+                    dataset, batch_size, pair_types, num_workers, **kwargs
+                ),
+            )
             for pair_types in pair_types_list
         ]
         self.num_loaders = len(self.loaders)
@@ -248,9 +268,9 @@ class ComposedPairedShapesLoader:
     def __iter__(self):
         iterators = [iter(loader) for loader in self.loaders]
         while True:
-            for iterator in iterators:
+            for pair_types, iterator in iterators:
                 try:
-                    yield next(iterator)
+                    yield pair_types, *next(iterator)
                 except StopIteration:
                     return
 
