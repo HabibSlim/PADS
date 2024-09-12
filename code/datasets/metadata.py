@@ -230,6 +230,13 @@ def class_to_hex(class_name):
     return int_to_hex(COMPAT_CLASSES[class_name])
 
 
+def class_to_idx(class_name):
+    """
+    Convert class name to index.
+    """
+    return COMPAT_CLASSES[class_name]
+
+
 def apply_transform(pc, transform_mat):
     """
     Apply a transformation matrix to a point cloud.

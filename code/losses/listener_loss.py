@@ -1,6 +1,7 @@
 """
 Neural network listener loss on shape pairs.
 """
+
 import torch
 import torch.nn.functional as F
 
