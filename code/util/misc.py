@@ -771,7 +771,7 @@ def remove_flipped_points(points):
             continue
         # Check if any subsequent point is a flipped version
         flipped = np.isclose(
-            dot_products[i, i + 1 :], -magnitudes_squared[i], atol=1e-8
+            dot_products[i, i + 1 :], -magnitudes_squared[i], atol=1e-16
         )
         # Mark flipped points for removal
         mask[i + 1 :][flipped] = False
@@ -810,5 +810,7 @@ def get_bb_vecs(bb_prim):
 
     # Ensure vectors are pointing in the same direction
     vecs = flip_vecs(vecs)
+
+    assert vecs.shape[0] == 3
 
     return centroid, vecs
