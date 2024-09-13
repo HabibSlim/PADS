@@ -12,7 +12,6 @@ from models.modules import (
 from util.misc import cache_fn
 
 
-# ================== MODULE
 class PartAwareAE(nn.Module):
     def __init__(
             self,
@@ -177,10 +176,7 @@ class PartAwareVAE(PartAwareAE):
 
     def forward(self, latents, part_bbs, part_labels, batch_mask):
         kl, part_latents, bb_coord_embeds = self.encode(latents, part_bbs, part_labels, batch_mask)
-        print(bb_coord_embeds.shape)
         logits = self.decode(part_latents, bb_coord_embeds)
         logits = logits.squeeze(-1)
 
         return logits, kl
-
-# ==================
