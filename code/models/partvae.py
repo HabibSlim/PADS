@@ -124,11 +124,11 @@ class PartAwareAE(nn.Module):
 
         return part_latents, bb_coord_embeds
     
-    def decode(self, part_latents, bb_coord_embeds):
+    def decode(self, part_latents, bb_coord_embeds, batch_mask):
         # Expand latents to full dimension
         x = self.expand_latents(part_latents)
         bb_coord_embeds_proj = self.bb_coord_proj_out(bb_coord_embeds)
-        x = self.in_decode(x, context=bb_coord_embeds_proj)
+        x = self.in_decode(x, context=bb_coord_embeds_proj, mask=batch_mask)
 
         # Stacked decoder layers
         for attn, ff in self.decoder_layers:
@@ -142,10 +142,10 @@ class PartAwareAE(nn.Module):
 
     def forward(self, latents, part_bbs, part_labels, batch_mask):
         part_latents, bb_coord_embeds = self.encode(latents, part_bbs, part_labels, batch_mask)
-        latents = self.decode(part_latents, bb_coord_embeds)
+        latents = self.decode(part_latents, bb_coord_embeds, batch_mask)
 
         return latents
-    
+
 
 class PartAwareVAE(PartAwareAE):
     def __init__(
@@ -169,14 +169,13 @@ class PartAwareVAE(PartAwareAE):
 
         return kl, part_latents, bb_coord_embeds
     
-    def decode(self, part_latents, bb_coord_embeds):
-        latents = super().decode(part_latents, bb_coord_embeds)
+    def decode(self, part_latents, bb_coord_embeds, batch_mask):
+        latents = super().decode(part_latents, bb_coord_embeds, batch_mask)
 
         return latents
 
     def forward(self, latents, part_bbs, part_labels, batch_mask):
         kl, part_latents, bb_coord_embeds = self.encode(latents, part_bbs, part_labels, batch_mask)
-        logits = self.decode(part_latents, bb_coord_embeds)
-        logits = logits.squeeze(-1)
+        logits = self.decode(part_latents, bb_coord_embeds, batch_mask).squeeze(-1)
 
-        return logits, kl
+        return logits, kl, part_latents

@@ -62,6 +62,8 @@ class ShapeLatentDataset(Dataset):
                 final_list += [[k + ".npy" for k in [f, bb_coords_f, bb_labels_f]]]
         self.file_list = final_list
         self.file_list.sort()
+        self.file_triplets = []
+        self.g = torch.Generator()
 
     def __len__(self):
         return len(self.file_list)
@@ -73,6 +75,11 @@ class ShapeLatentDataset(Dataset):
             os.path.join(self.bbs_dir, f) for f in self.file_list[idx][1:]
         ]
         latent_f, bb_coords_f, bb_labels_f = file_paths
+        # Extract model ID from the filename
+        basename = os.path.basename(latent_f)
+
+        model_id = basename.split("_")[0:2][0] + basename.split("_")[0:2][1]
+        model_id = int(model_id, 16)
 
         # Loading latent and bounding box data
         latent = np.load(latent_f)
@@ -86,8 +93,10 @@ class ShapeLatentDataset(Dataset):
 
         # Shuffle the order of parts if self.shuffle is True
         if self.shuffle_parts:
+            self.g.manual_seed(model_id)
+
             num_parts = bb_coords_tensor.size(0)
-            shuffle_indices = torch.randperm(num_parts)
+            shuffle_indices = torch.randperm(num_parts, generator=self.g)
             bb_coords_tensor = bb_coords_tensor[shuffle_indices]
             bb_labels_tensor = bb_labels_tensor[shuffle_indices]
 
@@ -193,13 +202,13 @@ class PairedShapesLoader:
     Paired shapes loader.
     """
 
-    def __init__(self, dataset, batch_size, pair_types, num_workers, **kwargs):
+    def __init__(self, dataset, batch_size, pair_types, num_workers, shuffle, **kwargs):
         self.dataset = dataset
         self.batch_size = batch_size
         self.pair_types = pair_types
         self.num_workers = num_workers
         self.kwargs = kwargs
-        self.shuffle = kwargs.get("shuffle", True)
+        self.shuffle = shuffle
         self.create_dataloader()
 
     def create_dataloader(self):
@@ -253,12 +262,19 @@ class ComposedPairedShapesLoader:
     Composed loader that alternates between batches of multiple shape pair types.
     """
 
-    def __init__(self, dataset, batch_size, pair_types_list, num_workers, **kwargs):
+    def __init__(
+        self, dataset, batch_size, pair_types_list, num_workers, shuffle=False, **kwargs
+    ):
         self.loaders = [
             (
                 pair_types,
                 PairedShapesLoader(
-                    dataset, batch_size, pair_types, num_workers, **kwargs
+                    dataset,
+                    batch_size,
+                    pair_types,
+                    num_workers,
+                    shuffle=shuffle,
+                    **kwargs,
                 ),
             )
             for pair_types in pair_types_list
