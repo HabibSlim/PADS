@@ -3,7 +3,7 @@ Defining loss functions used for the PartVAE model.
 """
 
 import torch
-from torch import nn
+from torch.nn import functional as F
 
 
 class KLRecLoss:
@@ -27,26 +27,19 @@ class ScaleInvariantLoss:
     Scale-invariant loss for the PartVAE model.
     """
 
-    def __init__(self, l2_loss):
-        self.l2_loss = l2_loss
+    def __init__(self):
+        pass
 
-    def __call__(self, part_latents_a, part_latents_b, bb_a, bb_b, mask_a, mask_b):
+    def __call__(self, part_latents_a, part_latents_b, mask):
         """
         Call the loss function.
         """
-        permuts = self.find_permutation_padded(bb_a, bb_b, mask_a, mask_b)
-        total_loss = 0.0
-        inter = mask_a & mask_b
-        B = permuts.shape[0]
-        for i in range(B):
-            b_to_a = permuts[i][inter[i]]
-            n_parts = len(b_to_a)
-            # assert (bb_b[i][b_to_a] == bb_a[i][:n_parts]).all()
-            total_loss += (
-                self.l2_loss(part_latents_b[i][b_to_a], part_latents_a[i][:n_parts])
-                / n_parts
-            )
-        return total_loss / B
+        # Apply mask to both latents
+        masked_latents_a = part_latents_a[mask]
+        masked_latents_b = part_latents_b[mask]
+
+        # Calculate L2 loss
+        return F.mse_loss(masked_latents_a, masked_latents_b)
 
 
 class PartDropLoss:
@@ -54,8 +47,8 @@ class PartDropLoss:
     Part drop loss for the PartVAE model.
     """
 
-    def __init__(self, l2_loss):
-        self.l2_loss = l2_loss
+    def __init__(self):
+        pass
 
     def find_permutation_padded(self, bb_a, bb_b, mask_a, mask_b):
         """
@@ -81,6 +74,12 @@ class PartDropLoss:
             # Update permutation
             A_indices = torch.nonzero(mask_a[i]).squeeze()
             B_indices = torch.nonzero(mask_b[i]).squeeze()
+
+            # Deal with the case where A_indices is a single element
+            if A_indices.dim() == 0:
+                A_indices = A_indices.unsqueeze(0)
+            if B_indices.dim() == 0:
+                B_indices = B_indices.unsqueeze(0)
             permutation[i, A_indices[A_matches]] = B_indices[B_matches]
 
         return permutation
@@ -97,8 +96,7 @@ class PartDropLoss:
             b_to_a = permuts[i][inter[i]]
             n_parts = len(b_to_a)
             # assert (bb_b[i][b_to_a] == bb_a[i][:n_parts]).all()
-            total_loss += (
-                self.l2_loss(part_latents_b[i][b_to_a], part_latents_a[i][:n_parts])
-                / n_parts
+            total_loss += F.mse_loss(
+                part_latents_b[i][b_to_a], part_latents_a[i][:n_parts]
             )
         return total_loss / B

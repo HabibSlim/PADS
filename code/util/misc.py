@@ -4,6 +4,7 @@ Miscellaneous utility functions/classes.
 
 import builtins
 import datetime
+import json
 import os
 import sys
 import time
@@ -14,9 +15,11 @@ from pathlib import Path
 import cProfile
 import numpy as np
 import pstats
+import random
 import torch
 import torch.distributed as dist
 import trimesh
+import wandb
 from torch import inf
 from functools import wraps
 from torch_cluster import fps
@@ -25,6 +28,25 @@ from torch_cluster import fps
 """
 Logging and statistics classes.
 """
+
+
+def init_wandb(project_name, exp_name, model_config, wandb_id=None):
+    """
+    Initialize a new W&B run.
+    """
+    do_resume = wandb_id is not None
+    # Generate a random hex string for the run ID
+    wandb_id = wandb.util.generate_id() if wandb_id is None else wandb_id
+    print(project_name, exp_name, wandb_id)
+    wandb.init(
+        project=project_name,
+        name=exp_name + "__" + wandb_id,
+        config=model_config,
+        resume=do_resume,
+    )
+
+    # Log the model params
+    print("Model params:\n", json.dumps(model_config, indent=4, sort_keys=True))
 
 
 def load_pickle(path):
@@ -493,28 +515,20 @@ def get_grad_norm_(parameters, norm_type: float = 2.0) -> torch.Tensor:
     return total_norm
 
 
-def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler):
+def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler=None):
     output_dir = Path(args.output_dir)
-    epoch_name = str(epoch)
-    if loss_scaler is not None:
-        checkpoint_paths = [output_dir / ("checkpoint-%s.pth" % epoch_name)]
-        for checkpoint_path in checkpoint_paths:
-            to_save = {
-                "model": model_without_ddp.state_dict(),
-                "optimizer": optimizer.state_dict(),
-                "epoch": epoch,
-                "scaler": loss_scaler.state_dict(),
-                "args": args,
-            }
+    checkpoint_paths = [output_dir / ("checkpoint-%s.pth" % str(epoch))]
+    for checkpoint_path in checkpoint_paths:
+        to_save = {
+            "model": model_without_ddp.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "epoch": epoch,
+            "args": args,
+        }
+        if loss_scaler is not None:
+            to_save["scaler"] = loss_scaler.state_dict()
 
-            save_on_master(to_save, checkpoint_path)
-    else:
-        client_state = {"epoch": epoch}
-        model.save_checkpoint(
-            save_dir=args.output_dir,
-            tag="checkpoint-%s" % epoch_name,
-            client_state=client_state,
-        )
+        save_on_master(to_save, checkpoint_path)
 
 
 def save_bert(args, epoch, text_model):
@@ -529,7 +543,7 @@ def save_bert(args, epoch, text_model):
     )
 
 
-def load_model(args, model_without_ddp, optimizer, loss_scaler):
+def load_model(args, model_without_ddp, optimizer, loss_scaler=None):
     if args.resume.startswith("https"):
         checkpoint = torch.hub.load_state_dict_from_url(
             args.resume, map_location="cpu", check_hash=True
@@ -545,7 +559,7 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler):
     ):
         optimizer.load_state_dict(checkpoint["optimizer"])
         args.start_epoch = checkpoint["epoch"] + 1
-        if "scaler" in checkpoint:
+        if loss_scaler is not None and "scaler" in checkpoint:
             loss_scaler.load_state_dict(checkpoint["scaler"])
         print("With optim & sched!")
 
@@ -607,14 +621,9 @@ def set_all_seeds(seed, use_rank=True):
     torch.manual_seed(seed + base_rank)
     torch.cuda.manual_seed_all(seed + base_rank)
     torch.cuda.manual_seed(seed + base_rank)
-    # torch.backends.cudnn.deterministic = True
-    # torch.backends.cudnn.benchmark = False
-    import numpy as np
-
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     np.random.seed(seed)
-
-    import random
-
     random.seed(seed)
     print("Set seed to %d" % seed)
 

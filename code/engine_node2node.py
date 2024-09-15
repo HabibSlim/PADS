@@ -1,6 +1,7 @@
 """
 Training and evaluation functions for Node2Node model.
 """
+
 import math
 import sys
 from argparse import Namespace
@@ -121,15 +122,15 @@ def train_one_epoch(
     accum_iter = args.accum_iter
     optimizer.zero_grad()
 
-    for data_iter_step, (nodes_a, nodes_b, text_ab) in enumerate(
+    for data_step, (nodes_a, nodes_b, text_ab) in enumerate(
         metric_logger.log_every(data_loader, PRINT_FREQ, header)
     ):
         # We use a per iteration (instead of per epoch) lr scheduler
-        if data_iter_step % accum_iter == 0 and not (
+        if data_step % accum_iter == 0 and not (
             args.use_adam or args.plateau_scheduler
         ):
             adjusted_lr = lr_sched.adjust_learning_rate(
-                optimizer, data_iter_step / len(data_loader) + epoch, args
+                optimizer, data_step / len(data_loader) + epoch, args
             )
 
         # Computing loss
@@ -158,9 +159,9 @@ def train_one_epoch(
             clip_grad=max_norm,
             parameters=model.parameters(),
             create_graph=False,
-            update_grad=(data_iter_step + 1) % accum_iter == 0,
+            update_grad=(data_step + 1) % accum_iter == 0,
         )
-        if (data_iter_step + 1) % accum_iter == 0:
+        if (data_step + 1) % accum_iter == 0:
             optimizer.zero_grad()
         torch.cuda.synchronize()
 
@@ -174,11 +175,11 @@ def train_one_epoch(
 
         metric_logger.update(lr=max_lr)
 
-        if global_rank == 0 and (data_iter_step + 1) % accum_iter == 0:
+        if global_rank == 0 and (data_step + 1) % accum_iter == 0:
             """We use epoch_1000x as the x-axis in tensorboard.
             This calibrates different curves when batch size changes.
             """
-            epoch_1000x = int((data_iter_step / len(data_loader) + epoch) * 1000)
+            epoch_1000x = int((data_step / len(data_loader) + epoch) * 1000)
             wandb.log(
                 {
                     "epoch_1000x": epoch_1000x,

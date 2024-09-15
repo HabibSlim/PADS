@@ -3,14 +3,21 @@ Latents dataset.
 """
 
 import json
+import math
 import os
 import numpy as np
 import torch
 import torch.nn.functional as F
 
 import random
-from torch.utils.data import Dataset, BatchSampler, DataLoader
+from torch.utils.data import Dataset, BatchSampler, Sampler, DataLoader
+import torch.distributed as dist
 from collections import defaultdict
+
+
+class PairType:
+    NO_ROT_PAIR = "rand_no_rot,rand_no_rot"
+    PART_DROP = "part_drop,orig"
 
 
 class ShapeLatentDataset(Dataset):
@@ -62,8 +69,23 @@ class ShapeLatentDataset(Dataset):
                 final_list += [[k + ".npy" for k in [f, bb_coords_f, bb_labels_f]]]
         self.file_list = final_list
         self.file_list.sort()
-        self.file_triplets = []
-        self.g = torch.Generator()
+        self.file_entries = []
+        for idx in range(len(self.file_list)):
+            # Unpack file paths
+            file_paths = [os.path.join(self.latents_dir, self.file_list[idx][0])]
+            file_paths = file_paths + [
+                os.path.join(self.bbs_dir, f) for f in self.file_list[idx][1:]
+            ]
+            latent_f, bb_coords_f, bb_labels_f = file_paths
+
+            # Extract model ID from the filename
+            basename = os.path.basename(latent_f)
+            model_id = basename.split("_")[0:2][0] + basename.split("_")[0:2][1]
+            model_id = int(model_id, 16)
+
+            self.file_entries.append((latent_f, bb_coords_f, bb_labels_f, model_id))
+
+        self.rng = torch.Generator()
 
     def __len__(self):
         return len(self.file_list)
@@ -75,9 +97,9 @@ class ShapeLatentDataset(Dataset):
             os.path.join(self.bbs_dir, f) for f in self.file_list[idx][1:]
         ]
         latent_f, bb_coords_f, bb_labels_f = file_paths
+
         # Extract model ID from the filename
         basename = os.path.basename(latent_f)
-
         model_id = basename.split("_")[0:2][0] + basename.split("_")[0:2][1]
         model_id = int(model_id, 16)
 
@@ -93,10 +115,10 @@ class ShapeLatentDataset(Dataset):
 
         # Shuffle the order of parts if self.shuffle is True
         if self.shuffle_parts:
-            self.g.manual_seed(model_id)
+            self.rng.manual_seed(model_id)
 
             num_parts = bb_coords_tensor.size(0)
-            shuffle_indices = torch.randperm(num_parts, generator=self.g)
+            shuffle_indices = torch.randperm(num_parts, generator=self.rng)
             bb_coords_tensor = bb_coords_tensor[shuffle_indices]
             bb_labels_tensor = bb_labels_tensor[shuffle_indices]
 
@@ -197,34 +219,185 @@ class PairedSampler(BatchSampler):
             return (len(self.paired_indices) + self.batch_size - 1) // self.batch_size
 
 
+class DistributedPairedSampler(BatchSampler):
+    def __init__(
+        self,
+        dataset,
+        batch_size,
+        pair_types,
+        num_replicas=None,
+        rank=None,
+        seed=0,
+        shuffle=True,
+        drop_last=False,
+    ):
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.pair_types = [t.strip() for t in pair_types.split(",")]
+        self.epoch = 0
+        self.num_replicas = num_replicas
+        self.rank = rank
+        self.seed = seed
+        self.shuffle = shuffle
+        self.drop_last = drop_last
+
+        if len(self.pair_types) != 2:
+            raise ValueError(
+                "pair_types should contain exactly two types separated by a comma"
+            )
+
+        # Group indices by ID and type
+        self.id_to_indices = defaultdict(lambda: defaultdict(list))
+        for idx, (filename, _, _) in enumerate(dataset.file_list):
+            parts = filename.split("_")
+            id_part = "_".join(parts[:2])
+            file_type = "_".join(parts[2:-1])
+            self.id_to_indices[id_part][file_type].append(idx)
+
+        # Filter out IDs that don't have both required types
+        self.valid_ids = [
+            id_part
+            for id_part, type_dict in self.id_to_indices.items()
+            if all(type in type_dict for type in self.pair_types)
+        ]
+
+        self.paired_indices = self._create_paired_indices()
+        self.num_samples = len(self.paired_indices) // self.num_replicas
+        self.rng = torch.Generator()
+        self.rng.manual_seed(self.seed + self.epoch)
+
+    def _create_paired_indices(self):
+        paired_indices = []
+
+        for id_part in self.valid_ids:
+            type1, type2 = self.pair_types
+            indices1 = self.id_to_indices[id_part][type1]
+            indices2 = self.id_to_indices[id_part][type2]
+
+            if type1 == type2:
+                # If the same type is requested, ensure we have at least 2 files
+                if len(indices1) < 2:
+                    continue
+                pair = random.sample(indices1, 2)
+            else:
+                # If different types, take one from each
+                pair = [random.choice(indices1), random.choice(indices2)]
+
+            paired_indices.extend(pair)
+
+        return paired_indices
+
+    def __iter__(self):
+        # Deterministically shuffle based on epoch and seed
+        if self.shuffle:
+            n = len(self.paired_indices)
+
+            # Generate a permutation for N/2 pairs
+            pair_perm = torch.randperm(n // 2, generator=self.rng).tolist()
+
+            # Use the permutation to reindex the paired list
+            indices = [j for i in pair_perm for j in (2 * i, 2 * i + 1)]
+        else:
+            indices = list(range(len(self.paired_indices)))
+
+        # Subsample while preserving pairs
+        n_pairs = len(indices) // 2
+        pair_indices = list(range(n_pairs))
+        subsampled_pair_indices = pair_indices[self.rank : n_pairs : self.num_replicas]
+
+        indices = [
+            idx
+            for pair_idx in subsampled_pair_indices
+            for idx in indices[2 * pair_idx : 2 * pair_idx + 2]
+        ]
+        self.num_samples = len(indices)
+
+        # Create batches
+        batches = []
+        batch = []
+        for idx in indices:
+            batch.append(self.paired_indices[idx])
+            if len(batch) == self.batch_size:
+                batches.append(batch)
+                batch = []
+
+        if len(batch) > 0 and not self.drop_last:
+            batches.append(batch)
+
+        return iter(batches)
+
+    def __len__(self):
+        if self.drop_last:
+            return self.num_samples // self.batch_size
+        else:
+            return (self.num_samples + self.batch_size - 1) // self.batch_size
+
+    def set_epoch(self, epoch):
+        self.epoch = epoch
+        self.rng.manual_seed(self.seed + self.epoch)
+
+
 class PairedShapesLoader:
     """
     Paired shapes loader.
     """
 
-    def __init__(self, dataset, batch_size, pair_types, num_workers, shuffle, **kwargs):
+    def __init__(
+        self,
+        dataset,
+        batch_size,
+        pair_types,
+        num_workers,
+        shuffle,
+        use_distributed=False,
+        num_replicas=None,
+        rank=None,
+        **kwargs,
+    ):
+        # Filter out keys from kwargs that are not DataLoader arguments
+        valid_keys = set(DataLoader.__init__.__code__.co_varnames)
+        kwargs = {k: v for k, v in kwargs.items() if k in valid_keys}
+        self.kwargs = kwargs
         self.dataset = dataset
         self.batch_size = batch_size
         self.pair_types = pair_types
         self.num_workers = num_workers
-        self.kwargs = kwargs
         self.shuffle = shuffle
+        self.use_distributed = use_distributed
+        self.num_replicas = num_replicas
+        self.rank = rank
         self.create_dataloader()
 
     def create_dataloader(self):
-        batch_sampler = PairedSampler(
-            self.dataset,
-            pair_types=self.pair_types,
-            batch_size=self.batch_size,
-            shuffle=self.shuffle,
-        )
+        if self.use_distributed:
+            batch_sampler = DistributedPairedSampler(
+                self.dataset,
+                self.batch_size,
+                self.pair_types,
+                shuffle=self.shuffle,
+                num_replicas=self.num_replicas,
+                rank=self.rank,
+            )
+        else:
+            batch_sampler = PairedSampler(
+                self.dataset,
+                pair_types=self.pair_types,
+                batch_size=self.batch_size,
+                shuffle=self.shuffle,
+            )
+        self.sampler = batch_sampler
         self.dataloader = DataLoader(
             self.dataset,
             batch_sampler=batch_sampler,
             num_workers=self.num_workers,
-            **self.kwargs,
         )
         self.iterator = iter(self.dataloader)
+
+    def set_epoch(self, epoch):
+        if self.use_distributed:
+            self.dataloader.batch_sampler.set_epoch(epoch)
+        else:
+            raise ValueError("set_epoch is only supported in distributed mode")
 
     def split_tensor(self, tensor):
         tensor_A = tensor[::2]
@@ -263,7 +436,16 @@ class ComposedPairedShapesLoader:
     """
 
     def __init__(
-        self, dataset, batch_size, pair_types_list, num_workers, shuffle=False, **kwargs
+        self,
+        dataset,
+        batch_size,
+        pair_types_list,
+        num_workers,
+        shuffle=False,
+        use_distributed=False,
+        num_replicas=None,
+        rank=None,
+        **kwargs,
     ):
         self.loaders = [
             (
@@ -274,6 +456,9 @@ class ComposedPairedShapesLoader:
                     pair_types,
                     num_workers,
                     shuffle=shuffle,
+                    use_distributed=use_distributed,
+                    num_replicas=num_replicas,
+                    rank=rank,
                     **kwargs,
                 ),
             )
@@ -281,8 +466,12 @@ class ComposedPairedShapesLoader:
         ]
         self.num_loaders = len(self.loaders)
 
+    def set_epoch(self, epoch):
+        for _, loader in self.loaders:
+            loader.set_epoch(epoch)
+
     def __iter__(self):
-        iterators = [iter(loader) for loader in self.loaders]
+        iterators = [(pair_types, iter(loader)) for pair_types, loader in self.loaders]
         while True:
             for pair_types, iterator in iterators:
                 try:
@@ -291,4 +480,4 @@ class ComposedPairedShapesLoader:
                     return
 
     def __len__(self):
-        return max(len(loader) for loader in self.loaders) * self.num_loaders
+        return max(len(loader) for _, loader in self.loaders)

@@ -1,0 +1,8 @@
+[00:14:26.383789] Model params:
+ {
+    "inv_weight": 0.2,
+    "kl_weight": 0.005,
+    "layer_depth": 8,
+    "part_latents_dim": 128,
+    "rec_weight": 0.8
+}

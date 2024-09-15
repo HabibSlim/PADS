@@ -15,3 +15,5 @@ tmp/
 tmp/**
 logs/
 logs/**
+output/*
+output/**/*

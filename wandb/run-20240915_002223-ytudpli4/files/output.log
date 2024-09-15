@@ -1,0 +1,19 @@
+[00:22:32.280151] Model params:
+ {
+    "inv_weight": 0.2,
+    "kl_weight": 0.005,
+    "layer_depth": 8,
+    "part_latents_dim": 128,
+    "rec_weight": 0.8
+}
+[00:22:32.281583] Start training for [500] epochs, from epoch [0].
+[00:22:32.777880] Averaged stats: total_loss: 2.2831 (2.2960)  kl_reg: 0.0138 (0.0138)  rec_loss: 2.3546 (2.3677)  inv_loss: 1.9969 (2.0089)
+[00:22:32.789403] [00:22:32.789985] [00:22:32.790429] [00:22:32.790737] [00:22:32.791163]
+Traceback (most recent call last):
+  File "/ibex/user/slimhy/PADS/code/main_partvae.py", line 398, in <module>
+    main(args)
+  File "/ibex/user/slimhy/PADS/code/main_partvae.py", line 375, in main
+    train_model(
+  File "/ibex/user/slimhy/PADS/code/main_partvae.py", line 255, in train_model
+    misc.save_model(
+TypeError: save_model() missing 1 required positional argument: 'loss_scaler'

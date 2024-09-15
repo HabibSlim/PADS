@@ -1,0 +1,330 @@
+{
+    "os": "Linux-5.14.0-162.23.1.el9_1.x86_64-x86_64-with-glibc2.34",
+    "python": "3.10.12",
+    "heartbeatAt": "2024-09-14T22:24:52.951853",
+    "startedAt": "2024-09-14T22:24:51.748520",
+    "docker": null,
+    "cuda": null,
+    "args": [
+        "--batch_size",
+        "64",
+        "--exp_name",
+        "partvae_train_partvae_kl_0.005",
+        "--epochs",
+        "500",
+        "--accum_iter",
+        "1",
+        "--valid_step",
+        "50",
+        "--save_every_n",
+        "50",
+        "--layer_depth",
+        "8",
+        "--part_latents_dim",
+        "128",
+        "--weight_decay",
+        "0.05",
+        "--blr",
+        "1e-3",
+        "--kl_weight",
+        "0.005",
+        "--rec_weight",
+        "0.8",
+        "--inv_weight",
+        "0.2",
+        "--data_path",
+        "/ibex/project/c2273/PADS/3DCoMPaT/",
+        "--output_dir",
+        "output/partvae/partvae_partvae_kl_0.005",
+        "--device",
+        "cuda",
+        "--num_workers",
+        "32",
+        "--seed",
+        "0",
+        "--debug_run"
+    ],
+    "state": "running",
+    "program": "/ibex/user/slimhy/PADS/code/main_partvae.py",
+    "codePathLocal": "code/main_partvae.py",
+    "codePath": "code/main_partvae.py",
+    "git": {
+        "remote": "git@github.com:HabibSlim/PADS.git",
+        "commit": "754a8484d9045fffe661a4f877c64462befa67e5"
+    },
+    "email": null,
+    "root": "/ibex/user/slimhy/PADS",
+    "host": "gpu210-18",
+    "username": "slimhy",
+    "executable": "/home/slimhy/conda/envs/3D2VS_flexicubes/bin/python3.10",
+    "cpu_count": 48,
+    "cpu_count_logical": 48,
+    "cpu_freq": {
+        "current": 3633.369895833334,
+        "min": 3900.0,
+        "max": 3900.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3599.999,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3600.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3099.999,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3099.998,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3100.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3099.998,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3100.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3099.999,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3099.998,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3099.998,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3100.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3099.999,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3099.999,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3099.999,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3100.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 2599.999,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3099.999,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3099.999,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3100.002,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3900.0,
+            "min": 3900.0,
+            "max": 3900.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 373.89100646972656,
+            "used": 9.50680160522461
+        }
+    },
+    "gpu": "Tesla V100-SXM2-32GB",
+    "gpu_count": 2,
+    "gpu_devices": [
+        {
+            "name": "Tesla V100-SXM2-32GB",
+            "memory_total": 34359738368
+        },
+        {
+            "name": "Tesla V100-SXM2-32GB",
+            "memory_total": 34359738368
+        }
+    ],
+    "memory": {
+        "total": 754.561767578125
+    }
+}

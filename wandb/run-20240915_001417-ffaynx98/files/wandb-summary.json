@@ -1,0 +1,1 @@
+{"epoch_1000x": 0, "train_batch_loss": 2.2831151485443115, "train_kl_reg_batch_loss": 0.013758690096437931, "train_rec_batch_loss": 2.354578733444214, "train_inv_batch_loss": 1.9969168901443481, "_timestamp": 1726348466.962258, "_runtime": 9.201783180236816, "_step": 0}

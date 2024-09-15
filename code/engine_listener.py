@@ -1,6 +1,7 @@
 """
 Training and evaluation functions for Node2Node model.
 """
+
 import math
 import sys
 from argparse import Namespace

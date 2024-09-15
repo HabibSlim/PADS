@@ -1,0 +1,33 @@
+[01:25:01.710986] Model params:
+ {
+    "inv_weight": 0.2,
+    "kl_weight": 0.005,
+    "layer_depth": 8,
+    "part_latents_dim": 128,
+    "rec_weight": 0.8
+}
+[01:25:01.712219] Start training for [500] epochs, from epoch [0].
+[01:25:01.817008] rand_no_rot,rand_no_rot ('05_16a_rand_no_rot_6', '01_00b_rand_no_rot_4', '1a_093_rand_no_rot_4', '19_056_rand_no_rot_3', '1c_0ed_rand_no_rot_2', '25_2bb_rand_no_rot_4', '1c_102_rand_no_rot_1', '0c_3e2_rand_no_rot_5', '08_02e_rand_no_rot_6', '23_0b5_rand_no_rot_7', '0c_44b_rand_no_rot_0', '05_07b_rand_no_rot_0', '18_1bb_rand_no_rot_5', '01_067_rand_no_rot_1', '05_0ae_rand_no_rot_2', '08_020_rand_no_rot_1', '21_046_rand_no_rot_4', '1d_005_rand_no_rot_1', '14_067_rand_no_rot_3', '0c_3dc_rand_no_rot_1', '0c_437_rand_no_rot_3', '25_116_rand_no_rot_2', '0c_1b4_rand_no_rot_1', '18_1a2_rand_no_rot_0', '0c_16f_rand_no_rot_6', '02_00d_rand_no_rot_3', '25_0ea_rand_no_rot_6', '0c_0ba_rand_no_rot_7', '25_09c_rand_no_rot_5', '02_079_rand_no_rot_5', '05_018_rand_no_rot_0', '1c_201_rand_no_rot_3') ('0c_20a_rand_no_rot_6', '1c_0e4_rand_no_rot_7', '18_1f1_rand_no_rot_5', '25_0d0_rand_no_rot_2', '09_14e_rand_no_rot_1', '09_146_rand_no_rot_2', '25_3dd_rand_no_rot_1', '25_34f_rand_no_rot_1', '11_06d_rand_no_rot_3', '0c_361_rand_no_rot_4', '0c_402_rand_no_rot_6', '18_0ea_rand_no_rot_7', '23_070_rand_no_rot_5', '1c_00d_rand_no_rot_3', '0c_2fe_rand_no_rot_7', '13_03b_rand_no_rot_7', '13_006_rand_no_rot_4', '18_0c5_rand_no_rot_5', '1c_0c3_rand_no_rot_4', '29_0f7_rand_no_rot_6', '09_187_rand_no_rot_2', '04_09b_rand_no_rot_4', '13_0a3_rand_no_rot_2', '13_028_rand_no_rot_1', '0c_2d5_rand_no_rot_4', '1d_07e_rand_no_rot_3', '1c_1fc_rand_no_rot_4', '25_22e_rand_no_rot_5', '09_0d0_rand_no_rot_1', '25_003_rand_no_rot_3', '10_011_rand_no_rot_4', '25_2a5_rand_no_rot_2')
+[01:25:02.343985] Averaged stats: total_loss: 2.2831 (2.2960)  kl_reg: 0.0138 (0.0138)  rec_loss: 2.3546 (2.3677)  inv_loss: 1.9969 (2.0089)
+[01:25:02.760764] rand_no_rot,rand_no_rot ('00_004_rand_no_rot_4', '00_01d_rand_no_rot_1', '00_021_rand_no_rot_6', '01_003_rand_no_rot_7', '01_006_rand_no_rot_4', '01_00a_rand_no_rot_5', '01_032_rand_no_rot_5', '01_04a_rand_no_rot_5', '01_065_rand_no_rot_4', '01_089_rand_no_rot_2', '01_090_rand_no_rot_1', '02_002_rand_no_rot_1', '02_02d_rand_no_rot_4', '02_035_rand_no_rot_2', '02_04a_rand_no_rot_4', '02_054_rand_no_rot_6', '02_064_rand_no_rot_0', '02_06d_rand_no_rot_1', '04_017_rand_no_rot_7', '04_066_rand_no_rot_1', '04_0a6_rand_no_rot_0', '04_0b9_rand_no_rot_7', '04_0df_rand_no_rot_3', '04_0fd_rand_no_rot_6', '04_117_rand_no_rot_7', '04_133_rand_no_rot_7', '04_141_rand_no_rot_1', '04_166_rand_no_rot_4', '04_192_rand_no_rot_5', '04_1ac_rand_no_rot_5', '04_1bb_rand_no_rot_2', '05_030_rand_no_rot_6') ('00_007_rand_no_rot_3', '00_01e_rand_no_rot_5', '01_002_rand_no_rot_1', '01_004_rand_no_rot_5', '01_009_rand_no_rot_0', '01_013_rand_no_rot_6', '01_039_rand_no_rot_4', '01_05e_rand_no_rot_6', '01_080_rand_no_rot_7', '01_08a_rand_no_rot_2', '02_000_rand_no_rot_6', '02_02b_rand_no_rot_2', '02_030_rand_no_rot_6', '02_045_rand_no_rot_2', '02_053_rand_no_rot_2', '02_059_rand_no_rot_6', '02_06a_rand_no_rot_1', '02_085_rand_no_rot_1', '04_035_rand_no_rot_3', '04_07d_rand_no_rot_2', '04_0b1_rand_no_rot_3', '04_0cc_rand_no_rot_0', '04_0e2_rand_no_rot_5', '04_10e_rand_no_rot_4', '04_11d_rand_no_rot_3', '04_13e_rand_no_rot_0', '04_150_rand_no_rot_7', '04_185_rand_no_rot_5', '04_1a3_rand_no_rot_7', '04_1b3_rand_no_rot_2', '04_1c6_rand_no_rot_7', '05_049_rand_no_rot_3')
+[01:25:02.798727] Test:  [0/4]  eta: 0:00:00  eval_loss: 2.2079 (2.2079)  eval_kl_reg: 0.0117 (0.0117)  eval_rec: 2.2609 (2.2609)  eval_inv: 1.9953 (1.9953)  time: 0.0395  data: 0.0021  max mem: 1848
+[01:25:02.801429] part_drop,orig ('00_004_part_drop_2', '00_01d_part_drop_0', '00_021_part_drop_2', '01_003_part_drop_6', '01_006_part_drop_2', '01_00a_part_drop_3', '01_032_part_drop_5', '01_04a_part_drop_7', '01_065_part_drop_7', '01_089_part_drop_0', '01_090_part_drop_6', '02_002_part_drop_5', '02_02d_part_drop_2', '02_035_part_drop_1', '02_04a_part_drop_4', '02_054_part_drop_5', '02_064_part_drop_5', '02_06d_part_drop_1', '04_017_part_drop_0', '04_066_part_drop_3', '04_0a6_part_drop_3', '04_0b9_part_drop_0', '04_0df_part_drop_5', '04_0fd_part_drop_7', '04_117_part_drop_3', '04_133_part_drop_7', '04_141_part_drop_2', '04_166_part_drop_2', '04_192_part_drop_0', '04_1ac_part_drop_6', '04_1bb_part_drop_0', '05_030_part_drop_7') ('00_007_part_drop_6', '00_01e_part_drop_1', '01_002_part_drop_2', '01_004_part_drop_6', '01_009_part_drop_2', '01_013_part_drop_2', '01_039_part_drop_1', '01_05e_part_drop_3', '01_080_part_drop_7', '01_08a_part_drop_1', '02_000_part_drop_1', '02_02b_part_drop_7', '02_030_part_drop_2', '02_045_part_drop_0', '02_053_part_drop_1', '02_059_part_drop_1', '02_06a_part_drop_4', '02_085_part_drop_2', '04_035_part_drop_6', '04_07d_part_drop_6', '04_0b1_part_drop_2', '04_0cc_part_drop_4', '04_0e2_part_drop_6', '04_10e_part_drop_3', '04_11d_part_drop_2', '04_13e_part_drop_3', '04_150_part_drop_6', '04_185_part_drop_4', '04_1a3_part_drop_2', '04_1b3_part_drop_2', '04_1c6_part_drop_6', '05_049_part_drop_7')
+[01:25:02.842878] [01:25:02.843494] [01:25:02.843819] [01:25:02.844124] [01:25:02.844421] [01:25:02.844725] [01:25:02.845026] [01:25:02.845333] [01:25:02.845634] [01:25:02.845939]
+Traceback (most recent call last):
+  File "/ibex/user/slimhy/PADS/code/main_partvae.py", line 398, in <module>
+    main(args)
+  File "/ibex/user/slimhy/PADS/code/main_partvae.py", line 375, in main
+    train_model(
+  File "/ibex/user/slimhy/PADS/code/main_partvae.py", line 264, in train_model
+    eval_stats = evaluate(
+  File "/home/slimhy/conda/envs/3D2VS_flexicubes/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 115, in decorate_context
+    return func(*args, **kwargs)
+  File "/ibex/user/slimhy/PADS/code/engine_partvae.py", line 202, in evaluate
+    loss = forward_pass(
+  File "/ibex/user/slimhy/PADS/code/engine_partvae.py", line 63, in forward_pass
+    inv_loss = part_drop_loss(
+  File "/ibex/user/slimhy/PADS/code/losses/partvae.py", line 85, in __call__
+    permuts = self.find_permutation_padded(bb_a, bb_b, mask_a, mask_b)
+  File "/ibex/user/slimhy/PADS/code/losses/partvae.py", line 77, in find_permutation_padded
+    permutation[i, A_indices[A_matches]] = B_indices[B_matches]
+IndexError: too many indices for tensor of dimension 0

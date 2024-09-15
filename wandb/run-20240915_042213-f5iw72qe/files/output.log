@@ -1,0 +1,34 @@
+[04:22:20.287999] Model params:
+ {
+    "inv_weight": 0.2,
+    "kl_weight": 0.005,
+    "layer_depth": 8,
+    "part_latents_dim": 128,
+    "rec_weight": 0.8
+}
+[04:22:20.289129] Start training for [500] epochs, from epoch [0].
+[04:22:20.292743] rand_no_rot,rand_no_rot ('0c_06f_rand_no_rot_1', '21_104_rand_no_rot_3', '11_0cd_rand_no_rot_2', '0c_0a2_rand_no_rot_4', '01_064_rand_no_rot_5', '25_155_rand_no_rot_0', '25_33f_rand_no_rot_3', '1c_147_rand_no_rot_1', '05_13a_rand_no_rot_3', '09_0a3_rand_no_rot_4', '19_006_rand_no_rot_3', '25_020_rand_no_rot_2', '25_352_rand_no_rot_6', '23_0d5_rand_no_rot_2', '21_05e_rand_no_rot_6', '21_0e3_rand_no_rot_2', '0c_052_rand_no_rot_6', '05_003_rand_no_rot_2', '13_017_rand_no_rot_1', '23_0ff_rand_no_rot_4', '05_120_rand_no_rot_3', '0c_19c_rand_no_rot_1', '05_0be_rand_no_rot_4', '1a_11d_rand_no_rot_3', '25_3e0_rand_no_rot_6', '05_05b_rand_no_rot_2', '0c_1e9_rand_no_rot_5', '25_28e_rand_no_rot_2', '04_125_rand_no_rot_3', '05_01a_rand_no_rot_5', '18_06a_rand_no_rot_3', '07_01a_rand_no_rot_2') ('0c_06f_rand_no_rot_4', '21_104_rand_no_rot_4', '11_0cd_rand_no_rot_6', '0c_0a2_rand_no_rot_6', '01_064_rand_no_rot_3', '25_155_rand_no_rot_5', '25_33f_rand_no_rot_5', '1c_147_rand_no_rot_7', '05_13a_rand_no_rot_4', '09_0a3_rand_no_rot_7', '19_006_rand_no_rot_6', '25_020_rand_no_rot_3', '25_352_rand_no_rot_5', '23_0d5_rand_no_rot_7', '21_05e_rand_no_rot_7', '21_0e3_rand_no_rot_3', '0c_052_rand_no_rot_1', '05_003_rand_no_rot_5', '13_017_rand_no_rot_2', '23_0ff_rand_no_rot_5', '05_120_rand_no_rot_0', '0c_19c_rand_no_rot_4', '05_0be_rand_no_rot_5', '1a_11d_rand_no_rot_5', '25_3e0_rand_no_rot_3', '05_05b_rand_no_rot_5', '0c_1e9_rand_no_rot_1', '25_28e_rand_no_rot_1', '04_125_rand_no_rot_6', '05_01a_rand_no_rot_4', '18_06a_rand_no_rot_0', '07_01a_rand_no_rot_7')
+[04:22:20.293853]
+[04:22:21.124697] Averaged stats: total_loss: 2.3300 (2.3145)  kl_reg: 0.0150 (0.0139)  rec_loss: 2.4111 (2.3915)  inv_loss: 2.0055 (2.0062)
+[04:22:21.373551] rand_no_rot,rand_no_rot ('00_004_rand_no_rot_4', '00_01d_rand_no_rot_1', '00_021_rand_no_rot_6', '01_003_rand_no_rot_7', '01_006_rand_no_rot_4', '01_00a_rand_no_rot_5', '01_032_rand_no_rot_5', '01_04a_rand_no_rot_5', '01_065_rand_no_rot_4', '01_089_rand_no_rot_2', '01_090_rand_no_rot_1', '02_002_rand_no_rot_1', '02_02d_rand_no_rot_4', '02_035_rand_no_rot_2', '02_04a_rand_no_rot_4', '02_054_rand_no_rot_6', '02_064_rand_no_rot_0', '02_06d_rand_no_rot_1', '04_017_rand_no_rot_7', '04_066_rand_no_rot_1', '04_0a6_rand_no_rot_0', '04_0b9_rand_no_rot_7', '04_0df_rand_no_rot_3', '04_0fd_rand_no_rot_6', '04_117_rand_no_rot_7', '04_133_rand_no_rot_7', '04_141_rand_no_rot_1', '04_166_rand_no_rot_4', '04_192_rand_no_rot_5', '04_1ac_rand_no_rot_5', '04_1bb_rand_no_rot_2', '05_030_rand_no_rot_6') ('00_004_rand_no_rot_5', '00_01d_rand_no_rot_5', '00_021_rand_no_rot_2', '01_003_rand_no_rot_3', '01_006_rand_no_rot_0', '01_00a_rand_no_rot_2', '01_032_rand_no_rot_4', '01_04a_rand_no_rot_0', '01_065_rand_no_rot_7', '01_089_rand_no_rot_6', '01_090_rand_no_rot_5', '02_002_rand_no_rot_5', '02_02d_rand_no_rot_7', '02_035_rand_no_rot_6', '02_04a_rand_no_rot_3', '02_054_rand_no_rot_0', '02_064_rand_no_rot_3', '02_06d_rand_no_rot_4', '04_017_rand_no_rot_5', '04_066_rand_no_rot_4', '04_0a6_rand_no_rot_7', '04_0b9_rand_no_rot_1', '04_0df_rand_no_rot_7', '04_0fd_rand_no_rot_0', '04_117_rand_no_rot_3', '04_133_rand_no_rot_0', '04_141_rand_no_rot_3', '04_166_rand_no_rot_1', '04_192_rand_no_rot_0', '04_1ac_rand_no_rot_7', '04_1bb_rand_no_rot_7', '05_030_rand_no_rot_2')
+[04:22:21.375777]
+[04:22:21.405546] Test:  [0/4]  eta: 0:00:00  eval_loss: 2.1892 (2.1892)  eval_kl_reg: 0.0121 (0.0121)  eval_rec: 2.2373 (2.2373)  eval_inv: 1.9965 (1.9965)  time: 0.0330  data: 0.0014  max mem: 1848
+[04:22:21.407366] part_drop,orig ('00_004_part_drop_2', '00_01d_part_drop_0', '00_021_part_drop_2', '01_003_part_drop_6', '01_006_part_drop_2', '01_00a_part_drop_3', '01_032_part_drop_5', '01_04a_part_drop_7', '01_065_part_drop_7', '01_089_part_drop_0', '01_090_part_drop_6', '02_002_part_drop_5', '02_02d_part_drop_2', '02_035_part_drop_1', '02_04a_part_drop_4', '02_054_part_drop_5', '02_064_part_drop_5', '02_06d_part_drop_1', '04_017_part_drop_0', '04_066_part_drop_3', '04_0a6_part_drop_3', '04_0b9_part_drop_0', '04_0df_part_drop_5', '04_0fd_part_drop_7', '04_117_part_drop_3', '04_133_part_drop_7', '04_141_part_drop_2', '04_166_part_drop_2', '04_192_part_drop_0', '04_1ac_part_drop_6', '04_1bb_part_drop_0', '05_030_part_drop_7') ('00_004_orig_0', '00_01d_orig_0', '00_021_orig_0', '01_003_orig_0', '01_006_orig_0', '01_00a_orig_0', '01_032_orig_0', '01_04a_orig_0', '01_065_orig_0', '01_089_orig_0', '01_090_orig_0', '02_002_orig_0', '02_02d_orig_0', '02_035_orig_0', '02_04a_orig_0', '02_054_orig_0', '02_064_orig_0', '02_06d_orig_0', '04_017_orig_0', '04_066_orig_0', '04_0a6_orig_0', '04_0b9_orig_0', '04_0df_orig_0', '04_0fd_orig_0', '04_117_orig_0', '04_133_orig_0', '04_141_orig_0', '04_166_orig_0', '04_192_orig_0', '04_1ac_orig_0', '04_1bb_orig_0', '05_030_orig_0')
+[04:22:21.408464]
+[04:22:21.455246] [04:22:21.456123] [04:22:21.467453] [04:22:21.526848] [04:22:21.541046] [04:22:21.545672] [04:22:21.554598] [04:22:21.574055] [04:22:21.574484]
+Traceback (most recent call last):
+  File "/ibex/user/slimhy/PADS/code/main_partvae.py", line 426, in <module>
+    main(args)
+  File "/ibex/user/slimhy/PADS/code/main_partvae.py", line 403, in main
+    train_model(
+  File "/ibex/user/slimhy/PADS/code/main_partvae.py", line 286, in train_model
+    eval_stats = evaluate(
+  File "/home/slimhy/conda/envs/3D2VS_flexicubes/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 115, in decorate_context
+    return func(*args, **kwargs)
+  File "/ibex/user/slimhy/PADS/code/engine_partvae.py", line 199, in evaluate
+    for data_step, data_tuple in enumerate(
+  File "/ibex/user/slimhy/PADS/code/util/misc.py", line 218, in log_every
+    for obj in iterable:
+  File "/ibex/user/slimhy/PADS/code/datasets/latents.py", line 477, in __iter__
+    for pair_types, iterator in iterators:
+ValueError: not enough values to unpack (expected 2, got 0)

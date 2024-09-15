@@ -1,0 +1,30 @@
+[01:08:27.533095] Model params:
+ {
+    "inv_weight": 0.2,
+    "kl_weight": 0.005,
+    "layer_depth": 8,
+    "part_latents_dim": 128,
+    "rec_weight": 0.8
+}
+[01:08:27.534069] Start training for [500] epochs, from epoch [0].
+[01:08:30.238736] Averaged stats: total_loss: 2.2831 (2.2960)  kl_reg: 0.0138 (0.0138)  rec_loss: 2.3546 (2.3677)  inv_loss: 1.9969 (2.0089)
+[01:08:30.667280] Test:  [0/4]  eta: 0:00:00  eval_loss: 2.2079 (2.2079)  eval_kl_reg: 0.0117 (0.0117)  eval_rec: 2.2609 (2.2609)  eval_inv: 1.9953 (1.9953)  time: 0.0433  data: 0.0067  max mem: 1848
+[01:08:30.719275] [01:08:30.719920] [01:08:30.720501] [01:08:30.721086] [01:08:30.721405] [01:08:30.721718] [01:08:30.722061] [01:08:30.722353] [01:08:30.722645] [01:08:30.722949]
+Traceback (most recent call last):
+  File "/ibex/user/slimhy/PADS/code/main_partvae.py", line 398, in <module>
+    main(args)
+  File "/ibex/user/slimhy/PADS/code/main_partvae.py", line 375, in main
+    train_model(
+  File "/ibex/user/slimhy/PADS/code/main_partvae.py", line 264, in train_model
+    eval_stats = evaluate(
+  File "/home/slimhy/conda/envs/3D2VS_flexicubes/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 115, in decorate_context
+    return func(*args, **kwargs)
+  File "/ibex/user/slimhy/PADS/code/engine_partvae.py", line 201, in evaluate
+    loss = forward_pass(
+  File "/ibex/user/slimhy/PADS/code/engine_partvae.py", line 62, in forward_pass
+    inv_loss = part_drop_loss(
+  File "/ibex/user/slimhy/PADS/code/losses/partvae.py", line 85, in __call__
+    permuts = self.find_permutation_padded(bb_a, bb_b, mask_a, mask_b)
+  File "/ibex/user/slimhy/PADS/code/losses/partvae.py", line 77, in find_permutation_padded
+    permutation[i, A_indices[A_matches]] = B_indices[B_matches]
+IndexError: too many indices for tensor of dimension 0

@@ -1,0 +1,51 @@
+wandb_version: 1
+
+layer_depth:
+  desc: null
+  value: 8
+part_latents_dim:
+  desc: null
+  value: 128
+kl_weight:
+  desc: null
+  value: 0.005
+rec_weight:
+  desc: null
+  value: 0.8
+inv_weight:
+  desc: null
+  value: 0.2
+_wandb:
+  desc: null
+  value:
+    python_version: 3.10.12
+    cli_version: 0.15.12
+    framework: torch
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    start_time: 1726365200.741771
+    t:
+      1:
+      - 1
+      - 41
+      - 49
+      - 51
+      - 55
+      - 63
+      2:
+      - 1
+      - 41
+      - 49
+      - 51
+      - 55
+      - 63
+      3:
+      - 2
+      - 13
+      - 16
+      - 23
+      4: 3.10.12
+      5: 0.15.12
+      8:
+      - 5
+      13: linux-x86_64

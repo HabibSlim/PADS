@@ -1,0 +1,31 @@
+[04:43:10.279576] Model params:
+ {
+    "inv_weight": 0.2,
+    "kl_weight": 0.005,
+    "layer_depth": 8,
+    "part_latents_dim": 128,
+    "rec_weight": 0.8
+}
+[04:43:10.280571] Start training for [500] epochs, from epoch [0].
+[04:43:10.739877] Averaged stats: total_loss: 2.3300 (2.3145)  kl_reg: 0.0150 (0.0139)  rec_loss: 2.4111 (2.3915)  inv_loss: 2.0055 (2.0062)
+[04:43:11.011644] Test:  [0/8]  eta: 0:00:00  eval_loss: 2.1892 (2.1892)  eval_kl_reg: 0.0121 (0.0121)  eval_rec: 2.2373 (2.2373)  eval_inv: 1.9965 (1.9965)  time: 0.0303  data: 0.0023  max mem: 1848
+[04:43:11.251652] Test:  [7/8]  eta: 0:00:00  eval_loss: 2.2688 (2.2602)  eval_kl_reg: 0.0119 (0.0119)  eval_rec: 2.3327 (2.3245)  eval_inv: 2.0013 (2.0031)  time: 0.0336  data: 0.0013  max mem: 1848
+[04:43:12.691830] Test: Total time: 0:00:01 (0.2138 s / it)
+[04:43:12.700865] [04:43:12.702875] [04:43:12.705626] [04:43:12.707637] [04:43:12.709595] [04:43:12.711957] [04:43:12.712957]
+/home/slimhy/conda/envs/3D2VS_flexicubes/lib/python3.10/site-packages/torch/utils/data/dataloader.py:560: UserWarning: This DataLoader will create 32 worker processes in total. Our suggested max number of worker in current system is 6, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(_create_warning_msg(
+Traceback (most recent call last):
+  File "/ibex/user/slimhy/PADS/code/main_partvae.py", line 426, in <module>
+    main(args)
+  File "/ibex/user/slimhy/PADS/code/main_partvae.py", line 403, in main
+    train_model(
+  File "/ibex/user/slimhy/PADS/code/main_partvae.py", line 286, in train_model
+    eval_stats = evaluate(
+  File "/home/slimhy/conda/envs/3D2VS_flexicubes/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 115, in decorate_context
+    return func(*args, **kwargs)
+  File "/ibex/user/slimhy/PADS/code/engine_partvae.py", line 236, in evaluate
+    "eval_loss": float(metric_logger.total_loss.global_avg),
+  File "/ibex/user/slimhy/PADS/code/util/misc.py", line 180, in __getattr__
+    raise AttributeError(
+
+[04:43:12.700865] [04:43:12.702875] [04:43:12.705626] [04:43:12.707637] [04:43:12.709595] [04:43:12.711957] [04:43:12.712957] [04:43:12.716158]

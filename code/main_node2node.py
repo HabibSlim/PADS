@@ -1,6 +1,7 @@
 """
 Main training script for text-conditioned node to node diffusion models.
 """
+
 import argparse
 import datetime
 import json
@@ -455,17 +456,12 @@ def main(args):
             "dist_eval": args.dist_eval,
         }
 
-        # Generate a random hex string for the run ID
-        wandb_id = wandb.util.generate_id() if args.wandb_id is None else args.wandb_id
-        wandb.init(
-            project="shape2vecset",
-            name=args.exp_name + "__" + wandb_id,
-            config=model_config,
-            resume=args.wandb_id is not None,
+        misc.init_wandb(
+            project_name="shape2vecset",
+            exp_name=args.exp_name,
+            model_config=model_config,
+            wandb_id=args.wandb_id,
         )
-
-        # Log the model params
-        print("Model params:\n", json.dumps(model_config, indent=4, sort_keys=True))
 
     if args.distributed:
         find_used = args.is_diff and not (
