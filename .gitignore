@@ -17,3 +17,5 @@ logs/
 logs/**
 output/*
 output/**/*
+wandb/*
+wandb/**/*
