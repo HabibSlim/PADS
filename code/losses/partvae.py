@@ -14,10 +14,12 @@ class KLRecLoss:
     def __init__(self):
         pass
 
-    def __call__(self, kl):
+    def __call__(self, kl, mask=None):
         """
         Call the loss function.
         """
+        if mask is not None:
+            kl = kl[mask]
         loss_kl = torch.sum(kl) / kl.shape[0]
         return loss_kl.mean()
 

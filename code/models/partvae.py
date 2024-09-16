@@ -175,7 +175,7 @@ class PartAwareVAE(PartAwareAE):
         mean = self.mean_fc(part_latents)
         logvar = self.logvar_fc(part_latents)
 
-        posterior = DiagonalGaussianDistribution(mean, logvar)
+        posterior = DiagonalGaussianDistribution(mean, logvar, no_reduction=True)
         part_latents = posterior.sample()
         kl = posterior.kl()
 

@@ -147,7 +147,7 @@ class PointEmbed(nn.Module):
 
 
 class DiagonalGaussianDistribution(object):
-    def __init__(self, mean, logvar, deterministic=False):
+    def __init__(self, mean, logvar, deterministic=False, no_reduction=False):
         self.mean = mean
         self.logvar = logvar
         self.logvar = torch.clamp(self.logvar, -30.0, 20.0)
@@ -158,6 +158,7 @@ class DiagonalGaussianDistribution(object):
             self.var = self.std = torch.zeros_like(self.mean).to(
                 device=self.mean.device
             )
+        self.no_reduction = no_reduction
 
     def sample(self):
         x = self.mean + self.std * torch.randn(self.mean.shape).to(
@@ -170,18 +171,29 @@ class DiagonalGaussianDistribution(object):
             return torch.Tensor([0.0])
         else:
             if other is None:
-                return 0.5 * torch.mean(
-                    torch.pow(self.mean, 2) + self.var - 1.0 - self.logvar, dim=[1, 2]
-                )
+                kl_vec = 0.5 * (torch.pow(self.mean, 2) + self.var - 1.0 - self.logvar)
+                if self.no_reduction:
+                    return kl_vec
+                else:
+                    return torch.mean(
+                        kl_vec,
+                        dim=[1, 2],
+                    )
             else:
-                return 0.5 * torch.mean(
+                kl_vec = 0.5 * (
                     torch.pow(self.mean - other.mean, 2) / other.var
                     + self.var / other.var
                     - 1.0
                     - self.logvar
                     + other.logvar,
-                    dim=[1, 2, 3],
                 )
+                if self.no_reduction:
+                    return kl_vec
+                else:
+                    return torch.mean(
+                        kl_vec,
+                        dim=[1, 2, 3],
+                    )
 
     def nll(self, sample, dims=[1, 2, 3]):
         if self.deterministic:

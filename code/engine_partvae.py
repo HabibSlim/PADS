@@ -51,10 +51,12 @@ def forward_pass(
     )
 
     # KL Reg loss
-    kl_reg = kl_rec_loss(kl_a) + kl_rec_loss(kl_b)
+    kl_reg = kl_rec_loss(kl_a, mask=mask_a) + kl_rec_loss(kl_b, mask=mask_b)
+    kl_reg /= 2.0
 
     # L2 loss
     rec_loss = F.mse_loss(logits_a, l_a) + F.mse_loss(logits_b, l_b)
+    rec_loss /= 2.0
 
     if pair_types == PairType.NO_ROT_PAIR:
         inv_loss = scale_inv_loss(part_latents_a, part_latents_b, mask_a)
