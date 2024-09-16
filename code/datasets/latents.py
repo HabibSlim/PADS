@@ -199,9 +199,6 @@ class PairedSampler(BatchSampler):
         return paired_indices
 
     def __iter__(self):
-        # if self.shuffle:
-        #    random.shuffle(self.paired_indices)
-
         batch = []
         for idx in self.paired_indices:
             batch.append(idx)
@@ -209,14 +206,12 @@ class PairedSampler(BatchSampler):
                 yield batch
                 batch = []
 
-        if len(batch) > 0 and not self.drop_last:
-            yield batch
+        # if len(batch) > 0 and not self.drop_last:
+        #     yield batch
 
     def __len__(self):
-        if self.drop_last:
-            return len(self.paired_indices) // self.batch_size
-        else:
-            return (len(self.paired_indices) + self.batch_size - 1) // self.batch_size
+        return len(self.paired_indices) * 2 // self.batch_size
+        # return (len(self.paired_indices) + self.batch_size - 1) // self.batch_size
 
 
 class DistributedPairedSampler(BatchSampler):
@@ -265,6 +260,7 @@ class DistributedPairedSampler(BatchSampler):
         self.num_samples = len(self.paired_indices) // self.num_replicas
         self.rng = torch.Generator()
         self.rng.manual_seed(self.seed + self.epoch)
+        self.indices = None
 
     def _create_paired_indices(self):
         paired_indices = []
@@ -287,7 +283,10 @@ class DistributedPairedSampler(BatchSampler):
 
         return paired_indices
 
-    def __iter__(self):
+    def sample_indices(self):
+        """
+        Sample indices for the current epoch.
+        """
         # Deterministically shuffle based on epoch and seed
         if self.shuffle:
             n = len(self.paired_indices)
@@ -305,36 +304,40 @@ class DistributedPairedSampler(BatchSampler):
         pair_indices = list(range(n_pairs))
         subsampled_pair_indices = pair_indices[self.rank : n_pairs : self.num_replicas]
 
-        indices = [
+        self.indices = [
             idx
             for pair_idx in subsampled_pair_indices
             for idx in indices[2 * pair_idx : 2 * pair_idx + 2]
         ]
-        self.num_samples = len(indices)
+
+    def __iter__(self):
+        if self.indices is None:
+            self.sample_indices()
 
         # Create batches
         batches = []
         batch = []
-        for idx in indices:
+        for idx in self.indices:
             batch.append(self.paired_indices[idx])
             if len(batch) == self.batch_size:
                 batches.append(batch)
                 batch = []
 
-        if len(batch) > 0 and not self.drop_last:
-            batches.append(batch)
+        # if len(batch) > 0 and not self.drop_last:
+        #     batches.append(batch)
 
         return iter(batches)
 
     def __len__(self):
-        if self.drop_last:
-            return self.num_samples // self.batch_size
-        else:
-            return (self.num_samples + self.batch_size - 1) // self.batch_size
+        num_samples = len(self.paired_indices)
+        return num_samples // self.batch_size
+        # else:
+        #     return (num_samples + self.batch_size - 1) // self.batch_size
 
     def set_epoch(self, epoch):
         self.epoch = epoch
         self.rng.manual_seed(self.seed + self.epoch)
+        self.sample_indices()
 
 
 class PairedShapesLoader:

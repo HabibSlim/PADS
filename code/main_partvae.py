@@ -307,10 +307,6 @@ def main(args):
     """
     Main function.
     """
-    print("Job dir: {}".format(os.path.dirname(os.path.realpath(__file__))))
-    print("{}".format(args).replace(", ", ",\n"))
-    print("Input args:\n", json.dumps(vars(args), indent=4, sort_keys=True))
-
     misc.init_distributed_mode(args)
     device = torch.device(args.device)
 
@@ -321,10 +317,9 @@ def main(args):
     global_rank, data_loader_train, data_loader_val = init_dataloaders(args)
 
     if global_rank == 0:
-        print("Rank: ", global_rank, " ok.")
-    else:
-        print()
-        print("YOOOO: ", global_rank, " ok.")
+        print("Job dir: {}".format(os.path.dirname(os.path.realpath(__file__))))
+        print("{}".format(args).replace(", ", ",\n"))
+        print("Input args:\n", json.dumps(vars(args), indent=4, sort_keys=True))
 
     # Create the model
     model = PartAwareVAE(

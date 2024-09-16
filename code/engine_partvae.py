@@ -102,6 +102,7 @@ def train_one_epoch(
     # Instantiate the losses
     kl_loss, scale_inv_loss, part_drop_loss = get_losses()
 
+    data_seen = False
     for data_step, data_tuple in enumerate(
         metric_logger.log_every(data_loader, PRINT_FREQ, header)
     ):
@@ -119,6 +120,7 @@ def train_one_epoch(
             + args.rec_weight * loss["rec_loss"]
             + args.inv_weight * loss["inv_loss"]
         )
+        data_seen = True
 
         # Stop training if loss explodes
         loss_value = total_loss.item()
@@ -135,7 +137,7 @@ def train_one_epoch(
 
         # Log the losses
         loss_update = {
-            "total_loss": float(loss_value),
+            "train_loss": float(loss_value),
             "kl_reg": float(loss["kl_reg"].item()),
             "rec_loss": float(loss["rec_loss"].item()),
             "inv_loss": float(loss["inv_loss"].item()),
@@ -143,12 +145,14 @@ def train_one_epoch(
         metric_logger.update(**loss_update)
 
         # Log the losses to wandb
-        if global_rank == 0 and ((data_step + 1) % accum_iter == 0 or args.debug_run):
+        if (
+            global_rank == 0
+        ):  # and ((data_step + 1) % accum_iter == 0 or args.debug_run):
             epoch_1000x = int((data_step / len(data_loader) + epoch) * 1000)
             wandb.log(
                 {
                     "epoch_1000x": epoch_1000x,
-                    "train_batch_loss": loss_update["total_loss"],
+                    "train_batch_loss": loss_update["train_loss"],
                     "train_kl_reg_batch_loss": loss_update["kl_reg"],
                     "train_rec_batch_loss": loss_update["rec_loss"],
                     "train_inv_batch_loss": loss_update["inv_loss"],
@@ -158,14 +162,18 @@ def train_one_epoch(
         if args.debug_run:
             break
 
+    assert data_seen, "No data seen in training loop"
+
     # Gather the stats from all processes
     metric_logger.synchronize_between_processes()
+
+    # Print metric logger keys
     print("Averaged stats:", metric_logger)
     if global_rank == 0:
         wandb.log(
             {
                 "epoch": epoch,
-                "train_loss": float(metric_logger.total_loss.global_avg),
+                "train_loss": float(metric_logger.train_loss.global_avg),
                 "train_kl_reg_loss": float(metric_logger.kl_reg.global_avg),
                 "train_rec_loss": float(metric_logger.rec_loss.global_avg),
                 "train_inv_loss": float(metric_logger.inv_loss.global_avg),
