@@ -92,7 +92,7 @@ class PartAwareAE(nn.Module):
             nn.Linear(dim // 2, dim),
         )
 
-    def encode(self, latents, part_bbs, part_labels, batch_mask):
+    def get_part_embeds(self, part_bbs, part_labels, batch_mask):
         # Embed centroids of bounding boxes
         bb_centroids = part_bbs[:, :, 0, :]  # B x N_p x 3
         bb_centroid_embeds = self.centroid_embed(bb_centroids)  # B x N_p x D/2
@@ -117,6 +117,14 @@ class PartAwareAE(nn.Module):
         part_embeds = torch.cat(
             (bb_coord_embeds_proj, part_labels_embed), dim=-1
         )  # B x N_p x D
+
+        return part_embeds, bb_coord_embeds
+
+    def encode(self, latents, part_bbs, part_labels, batch_mask):
+        # Get part labels/bbs embeddings
+        part_embeds, bb_coord_embeds = self.get_part_embeds(
+            part_bbs, part_labels, batch_mask
+        )
 
         # Repeat latents to match the number of parts
         latents_in = latents.transpose(1, 2).repeat(1, 3, 1)  # B x D x 8 -> B x 24 x D
@@ -167,7 +175,10 @@ class PartAwareVAE(PartAwareAE):
         self.mean_fc = nn.Linear(self.latent_dim, self.latent_dim)
         self.logvar_fc = nn.Linear(self.latent_dim, self.latent_dim)
 
-    def encode(self, latents, part_bbs, part_labels, batch_mask):
+    def get_part_embeds(self, part_bbs, part_labels, batch_mask):
+        return super().get_part_embeds(part_bbs, part_labels, batch_mask)
+
+    def encode(self, latents, part_bbs, part_labels, batch_mask, deterministic=False):
         part_latents, bb_coord_embeds = super().encode(
             latents, part_bbs, part_labels, batch_mask
         )
@@ -175,7 +186,9 @@ class PartAwareVAE(PartAwareAE):
         mean = self.mean_fc(part_latents)
         logvar = self.logvar_fc(part_latents)
 
-        posterior = DiagonalGaussianDistribution(mean, logvar, no_reduction=True)
+        posterior = DiagonalGaussianDistribution(
+            mean, logvar, deterministic=deterministic, no_reduction=True
+        )
         part_latents = posterior.sample()
         kl = posterior.kl()
 
@@ -186,9 +199,9 @@ class PartAwareVAE(PartAwareAE):
 
         return latents
 
-    def forward(self, latents, part_bbs, part_labels, batch_mask):
+    def forward(self, latents, part_bbs, part_labels, batch_mask, deterministic=False):
         kl, part_latents, bb_coord_embeds = self.encode(
-            latents, part_bbs, part_labels, batch_mask
+            latents, part_bbs, part_labels, batch_mask, deterministic=deterministic
         )
         logits = self.decode(part_latents, bb_coord_embeds, batch_mask).squeeze(-1)
 

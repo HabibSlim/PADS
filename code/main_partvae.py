@@ -16,7 +16,7 @@ from schedulefree import AdamWScheduleFree
 
 from datasets.latents import ShapeLatentDataset, ComposedPairedShapesLoader, PairType
 from engine_partvae import evaluate, train_one_epoch
-from models.partvae import PartAwareVAE
+from models.partvae import PartAwareVAE, PartAwareAE
 
 
 torch.set_num_threads(8)
@@ -71,6 +71,12 @@ def get_args_parser():
         default=128,
         type=int,
         help="Dimension of the individual part latents",
+    )
+    parser.add_argument(
+        "--use_vae",
+        action="store_true",
+        default=True,
+        help="Use VAE mode for training",
     )
 
     # Optimizer parameters
@@ -322,13 +328,22 @@ def main(args):
         print("Input args:\n", json.dumps(vars(args), indent=4, sort_keys=True))
 
     # Create the model
-    model = PartAwareVAE(
-        dim=512,
-        latent_dim=args.part_latents_dim,
-        heads=8,
-        dim_head=64,
-        depth=args.layer_depth,
-    ).to(device)
+    if args.use_vae:
+        model = PartAwareVAE(
+            dim=512,
+            latent_dim=args.part_latents_dim,
+            heads=8,
+            dim_head=64,
+            depth=args.layer_depth,
+        ).to(device)
+    else:
+        model = PartAwareAE(
+            dim=512,
+            latent_dim=args.part_latents_dim,
+            heads=8,
+            dim_head=64,
+            depth=args.layer_depth,
+        ).to(device)
     model.to(device)
     model_without_ddp = model
 

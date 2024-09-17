@@ -3,15 +3,13 @@ Latents dataset.
 """
 
 import json
-import math
 import os
 import numpy as np
 import torch
 import torch.nn.functional as F
 
 import random
-from torch.utils.data import Dataset, BatchSampler, Sampler, DataLoader
-import torch.distributed as dist
+from torch.utils.data import Dataset, BatchSampler, DataLoader
 from collections import defaultdict
 
 
@@ -36,14 +34,14 @@ class ShapeLatentDataset(Dataset):
         class_code=None,
         split=None,
     ):
-        self.exclude_types = set(exclude_types) if exclude_types else set()
+        exclude_types = set(exclude_types) if exclude_types else set()
         self.shuffle_parts = shuffle_parts
 
         # Load file list
         file_list = "capped_list.json" if cap_parts else "full_list.json"
         file_list = json.load(open(os.path.join(data_dir, file_list)))
-        self.latents_dir = os.path.join(data_dir, "latents")
-        self.bbs_dir = os.path.join(data_dir, "bounding_boxes")
+        latents_dir = os.path.join(data_dir, "latents")
+        bbs_dir = os.path.join(data_dir, "bounding_boxes")
 
         # Load the split
         if split is not None:
@@ -63,18 +61,21 @@ class ShapeLatentDataset(Dataset):
                 continue
 
             # Filter by file type
-            if file_type not in self.exclude_types:
+            if file_type not in exclude_types:
                 bb_coords_f = f + "_part_bbs"
                 bb_labels_f = f + "_part_labels"
                 final_list += [[k + ".npy" for k in [f, bb_coords_f, bb_labels_f]]]
-        self.file_list = final_list
-        self.file_list.sort()
-        self.file_entries = []
-        for idx in range(len(self.file_list)):
+
+        # Create a list of file paths
+        file_list = final_list
+        file_list.sort()
+        self.file_list = file_list
+        self.file_tuples = []
+        for idx in range(len(file_list)):
             # Unpack file paths
-            file_paths = [os.path.join(self.latents_dir, self.file_list[idx][0])]
+            file_paths = [os.path.join(latents_dir, file_list[idx][0])]
             file_paths = file_paths + [
-                os.path.join(self.bbs_dir, f) for f in self.file_list[idx][1:]
+                os.path.join(bbs_dir, f) for f in file_list[idx][1:]
             ]
             latent_f, bb_coords_f, bb_labels_f = file_paths
 
@@ -82,26 +83,16 @@ class ShapeLatentDataset(Dataset):
             basename = os.path.basename(latent_f)
             model_id = basename.split("_")[0:2][0] + basename.split("_")[0:2][1]
             model_id = int(model_id, 16)
-
-            self.file_entries.append((latent_f, bb_coords_f, bb_labels_f, model_id))
+            self.file_tuples += [(latent_f, bb_coords_f, bb_labels_f, model_id)]
 
         self.rng = torch.Generator()
 
     def __len__(self):
-        return len(self.file_list)
+        return len(self.file_tuples)
 
     def __getitem__(self, idx):
         # Unpack file paths
-        file_paths = [os.path.join(self.latents_dir, self.file_list[idx][0])]
-        file_paths = file_paths + [
-            os.path.join(self.bbs_dir, f) for f in self.file_list[idx][1:]
-        ]
-        latent_f, bb_coords_f, bb_labels_f = file_paths
-
-        # Extract model ID from the filename
-        basename = os.path.basename(latent_f)
-        model_id = basename.split("_")[0:2][0] + basename.split("_")[0:2][1]
-        model_id = int(model_id, 16)
+        latent_f, bb_coords_f, bb_labels_f, model_id = self.file_tuples[idx]
 
         # Loading latent and bounding box data
         latent = np.load(latent_f)
@@ -146,44 +137,45 @@ class PairedSampler(BatchSampler):
     """
 
     def __init__(self, dataset, batch_size, pair_types, shuffle=True, drop_last=False):
-        self.dataset = dataset
-        self.batch_size = batch_size
-        self.pair_types = [t.strip() for t in pair_types.split(",")]
-        self.shuffle = shuffle
-        self.drop_last = drop_last
-
-        if len(self.pair_types) != 2:
+        pair_types = [t.strip() for t in pair_types.split(",")]
+        if len(pair_types) != 2:
             raise ValueError(
                 "pair_types should contain exactly two types separated by a comma"
             )
 
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+
         # Group indices by ID and type
-        self.id_to_indices = defaultdict(lambda: defaultdict(list))
+        id_to_indices = defaultdict(lambda: defaultdict(list))
         for idx, (filename, _, _) in enumerate(dataset.file_list):
             parts = filename.split("_")
             id_part = "_".join(parts[:2])
             file_type = "_".join(parts[2:-1])
-            self.id_to_indices[id_part][file_type].append(idx)
+            id_to_indices[id_part][file_type].append(idx)
 
         # Filter out IDs that don't have both required types
-        self.valid_ids = [
+        valid_ids = [
             id_part
             for id_part, type_dict in self.id_to_indices.items()
-            if all(type in type_dict for type in self.pair_types)
+            if all(p_type in type_dict for p_type in pair_types)
         ]
 
-        self.paired_indices = self._create_paired_indices()
+        self.paired_indices = self._create_paired_indices(
+            id_to_indices, valid_ids, pair_types
+        )
 
-    def _create_paired_indices(self):
+    def _create_paired_indices(self, id_to_indices, valid_ids, pair_types):
         paired_indices = []
 
         if self.shuffle:
-            random.shuffle(self.valid_ids)
+            random.shuffle(valid_ids)
 
-        for id_part in self.valid_ids:
-            type1, type2 = self.pair_types
-            indices1 = self.id_to_indices[id_part][type1]
-            indices2 = self.id_to_indices[id_part][type2]
+        for id_part in valid_ids:
+            type1, type2 = pair_types
+            indices1 = id_to_indices[id_part][type1]
+            indices2 = id_to_indices[id_part][type2]
 
             if type1 == type2:
                 # If the same type is requested, ensure we have at least 2 files
@@ -206,12 +198,8 @@ class PairedSampler(BatchSampler):
                 yield batch
                 batch = []
 
-        # if len(batch) > 0 and not self.drop_last:
-        #     yield batch
-
     def __len__(self):
         return len(self.paired_indices) * 2 // self.batch_size
-        # return (len(self.paired_indices) + self.batch_size - 1) // self.batch_size
 
 
 class DistributedPairedSampler(BatchSampler):
@@ -226,9 +214,14 @@ class DistributedPairedSampler(BatchSampler):
         shuffle=True,
         drop_last=False,
     ):
+        pair_types = [t.strip() for t in pair_types.split(",")]
+        if len(pair_types) != 2:
+            raise ValueError(
+                "pair_types should contain exactly two types separated by a comma"
+            )
+
         self.dataset = dataset
         self.batch_size = batch_size
-        self.pair_types = [t.strip() for t in pair_types.split(",")]
         self.epoch = 0
         self.num_replicas = num_replicas
         self.rank = rank
@@ -236,39 +229,41 @@ class DistributedPairedSampler(BatchSampler):
         self.shuffle = shuffle
         self.drop_last = drop_last
 
-        if len(self.pair_types) != 2:
-            raise ValueError(
-                "pair_types should contain exactly two types separated by a comma"
-            )
-
-        # Group indices by ID and type
-        self.id_to_indices = defaultdict(lambda: defaultdict(list))
-        for idx, (filename, _, _) in enumerate(dataset.file_list):
-            parts = filename.split("_")
-            id_part = "_".join(parts[:2])
-            file_type = "_".join(parts[2:-1])
-            self.id_to_indices[id_part][file_type].append(idx)
-
-        # Filter out IDs that don't have both required types
-        self.valid_ids = [
-            id_part
-            for id_part, type_dict in self.id_to_indices.items()
-            if all(type in type_dict for type in self.pair_types)
-        ]
-
-        self.paired_indices = self._create_paired_indices()
+        # Create paired indices
+        self.paired_indices = self._create_paired_indices(dataset.file_list, pair_types)
         self.num_samples = len(self.paired_indices) // self.num_replicas
+
+        # Create RNG
         self.rng = torch.Generator()
         self.rng.manual_seed(self.seed + self.epoch)
         self.indices = None
 
-    def _create_paired_indices(self):
+    def _create_paired_indices(self, file_list, pair_types):
+        """
+        Initialize a list of paired indices.
+        """
+
+        # Group indices by ID and type
+        id_to_indices = defaultdict(lambda: defaultdict(list))
+        for idx, (filename, _, _) in enumerate(file_list):
+            parts = filename.split("_")
+            id_part = "_".join(parts[:2])
+            file_type = "_".join(parts[2:-1])
+            id_to_indices[id_part][file_type].append(idx)
+
+        # Filter out IDs that don't have both required types
+        valid_ids = [
+            id_part
+            for id_part, type_dict in id_to_indices.items()
+            if all(type in type_dict for type in pair_types)
+        ]
+
         paired_indices = []
 
-        for id_part in self.valid_ids:
-            type1, type2 = self.pair_types
-            indices1 = self.id_to_indices[id_part][type1]
-            indices2 = self.id_to_indices[id_part][type2]
+        for id_part in valid_ids:
+            type1, type2 = pair_types
+            indices1 = id_to_indices[id_part][type1]
+            indices2 = id_to_indices[id_part][type2]
 
             if type1 == type2:
                 # If the same type is requested, ensure we have at least 2 files
@@ -323,16 +318,11 @@ class DistributedPairedSampler(BatchSampler):
                 batches.append(batch)
                 batch = []
 
-        # if len(batch) > 0 and not self.drop_last:
-        #     batches.append(batch)
-
         return iter(batches)
 
     def __len__(self):
         num_samples = len(self.paired_indices)
         return num_samples // self.batch_size
-        # else:
-        #     return (num_samples + self.batch_size - 1) // self.batch_size
 
     def set_epoch(self, epoch):
         self.epoch = epoch
@@ -398,7 +388,8 @@ class PairedShapesLoader:
 
     def set_epoch(self, epoch):
         if self.use_distributed:
-            self.dataloader.batch_sampler.set_epoch(epoch)
+            self.sampler.set_epoch(epoch)
+            self.iterator = iter(self.dataloader)
         else:
             raise ValueError("set_epoch is only supported in distributed mode")
 
@@ -426,7 +417,7 @@ class PairedShapesLoader:
                 meta_B,
             )
         except StopIteration:
-            self.create_dataloader()  # Reset the dataloader
+            self.iterator = iter(self.dataloader)
             raise StopIteration
 
     def __len__(self):
@@ -448,32 +439,50 @@ class ComposedPairedShapesLoader:
         use_distributed=False,
         num_replicas=None,
         rank=None,
+        reset_every=100,
         **kwargs,
     ):
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.pair_types_list = pair_types_list
+        self.num_workers = num_workers
+        self.shuffle = shuffle
+        self.use_distributed = use_distributed
+        self.num_replicas = num_replicas
+        self.rank = rank
+        self.kwargs = kwargs
+        self.reset_every = reset_every
+        self.loaders = None
+
+    def create_loaders(self):
         self.loaders = [
             (
                 pair_types,
                 PairedShapesLoader(
-                    dataset,
-                    batch_size,
+                    self.dataset,
+                    self.batch_size,
                     pair_types,
-                    num_workers,
-                    shuffle=shuffle,
-                    use_distributed=use_distributed,
-                    num_replicas=num_replicas,
-                    rank=rank,
-                    **kwargs,
+                    self.num_workers,
+                    shuffle=self.shuffle,
+                    use_distributed=self.use_distributed,
+                    num_replicas=self.num_replicas,
+                    rank=self.rank,
+                    **self.kwargs,
                 ),
             )
-            for pair_types in pair_types_list
+            for pair_types in self.pair_types_list
         ]
         self.num_loaders = len(self.loaders)
 
     def set_epoch(self, epoch):
+        if epoch % self.reset_every == 0:
+            self.create_loaders()
         for _, loader in self.loaders:
             loader.set_epoch(epoch)
 
     def __iter__(self):
+        if self.loaders is None:
+            self.create_loaders()
         iterators = [(pair_types, iter(loader)) for pair_types, loader in self.loaders]
         while True:
             for pair_types, iterator in iterators:
@@ -483,4 +492,6 @@ class ComposedPairedShapesLoader:
                     return
 
     def __len__(self):
+        if self.loaders is None:
+            self.create_loaders()
         return max(len(loader) for _, loader in self.loaders)
