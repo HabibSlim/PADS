@@ -158,7 +158,7 @@ class PairedSampler(BatchSampler):
         # Filter out IDs that don't have both required types
         valid_ids = [
             id_part
-            for id_part, type_dict in self.id_to_indices.items()
+            for id_part, type_dict in id_to_indices.items()
             if all(p_type in type_dict for p_type in pair_types)
         ]
 
@@ -474,8 +474,8 @@ class ComposedPairedShapesLoader:
         ]
         self.num_loaders = len(self.loaders)
 
-    def set_epoch(self, epoch):
-        if epoch % self.reset_every == 0:
+    def set_epoch(self, epoch, force_reset=False):
+        if epoch % self.reset_every == 0 or force_reset:
             self.create_loaders()
         for _, loader in self.loaders:
             loader.set_epoch(epoch)

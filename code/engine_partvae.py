@@ -42,17 +42,26 @@ def forward_pass(
     bb_a, bb_b = bb_a.to(device), bb_b.to(device)  # B x 24 x 4 x 3
     bb_l_a, bb_l_b = bb_l_a.to(device), bb_l_b.to(device)  # B x 24
 
-    # Forward passes
-    logits_a, kl_a, part_latents_a = pvae(
-        latents=l_a, part_bbs=bb_a, part_labels=bb_l_a, batch_mask=mask_a
-    )
-    logits_b, kl_b, part_latents_b = pvae(
-        latents=l_b, part_bbs=bb_b, part_labels=bb_l_b, batch_mask=mask_b
-    )
+    # Optionally compute the KL Reg loss
+    if pvae.module.is_vae:
+        logits_a, kl_a, part_latents_a = pvae(
+            latents=l_a, part_bbs=bb_a, part_labels=bb_l_a, batch_mask=mask_a
+        )
+        logits_b, kl_b, part_latents_b = pvae(
+            latents=l_b, part_bbs=bb_b, part_labels=bb_l_b, batch_mask=mask_b
+        )
 
-    # KL Reg loss
-    kl_reg = kl_rec_loss(kl_a, mask=mask_a) + kl_rec_loss(kl_b, mask=mask_b)
-    kl_reg /= 2.0
+        # KL Reg loss
+        kl_reg = kl_rec_loss(kl_a, mask=mask_a) + kl_rec_loss(kl_b, mask=mask_b)
+        kl_reg /= 2.0
+    else:
+        logits_a, part_latents_a = pvae(
+            latents=l_a, part_bbs=bb_a, part_labels=bb_l_a, batch_mask=mask_a
+        )
+        logits_b, part_latents_b = pvae(
+            latents=l_b, part_bbs=bb_b, part_labels=bb_l_b, batch_mask=mask_b
+        )
+        kl_reg = torch.tensor(0.0).to(device)
 
     # L2 loss
     rec_loss = F.mse_loss(logits_a, l_a) + F.mse_loss(logits_b, l_b)

@@ -19,12 +19,14 @@ class PartAwareAE(nn.Module):
         latent_dim=128,
         max_parts=24,
         heads=8,
+        in_heads=1,
         dim_head=64,
         depth=2,
         weight_tie_layers=False,
     ):
         super().__init__()
 
+        self.is_vae = False
         self.dim = dim
         self.latent_dim = latent_dim
         self.max_parts = max_parts
@@ -47,10 +49,10 @@ class PartAwareAE(nn.Module):
 
         # Input/Output Cross-Attention Blocks
         self.in_encode = PreNorm(
-            dim, Attention(dim, dim, heads=1, dim_head=dim), context_dim=dim
+            dim, Attention(dim, dim, heads=in_heads, dim_head=dim), context_dim=dim
         )
         self.in_decode = PreNorm(
-            dim, Attention(dim, dim, heads=1, dim_head=dim), context_dim=dim
+            dim, Attention(dim, dim, heads=in_heads, dim_head=dim), context_dim=dim
         )
         self.out_proj = nn.Linear(24, 8)
 
@@ -160,9 +162,9 @@ class PartAwareAE(nn.Module):
         part_latents, bb_coord_embeds = self.encode(
             latents, part_bbs, part_labels, batch_mask
         )
-        latents = self.decode(part_latents, bb_coord_embeds, batch_mask)
+        logits = self.decode(part_latents, bb_coord_embeds, batch_mask)
 
-        return latents
+        return logits, part_latents
 
 
 class PartAwareVAE(PartAwareAE):
@@ -172,6 +174,7 @@ class PartAwareVAE(PartAwareAE):
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
+        self.is_vae = True
         self.mean_fc = nn.Linear(self.latent_dim, self.latent_dim)
         self.logvar_fc = nn.Linear(self.latent_dim, self.latent_dim)
 

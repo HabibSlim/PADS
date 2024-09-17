@@ -73,10 +73,10 @@ def get_args_parser():
         help="Dimension of the individual part latents",
     )
     parser.add_argument(
-        "--use_vae",
+        "--no_vae",
         action="store_true",
-        default=True,
-        help="Use VAE mode for training",
+        default=False,
+        help="Disable VAE for training",
     )
 
     # Optimizer parameters
@@ -96,6 +96,12 @@ def get_args_parser():
         default=1e-4,
         metavar="LR",
         help="Base learning rate: absolute_lr = base_lr * total_batch_size / 256",
+    )
+    parser.add_argument(
+        "--schedule_free",
+        action="store_true",
+        default=False,
+        help="Use schedule-free optimizer",
     )
 
     # Loss weights
@@ -289,6 +295,7 @@ def train_model(
             )
 
         if (epoch % args.valid_step == 0 or epoch + 1 == args.epochs) or args.debug_run:
+            data_loader_val.set_epoch(epoch, force_reset=True)
             eval_stats = evaluate(
                 args=args,
                 model=model,
@@ -328,8 +335,8 @@ def main(args):
         print("Input args:\n", json.dumps(vars(args), indent=4, sort_keys=True))
 
     # Create the model
-    if args.use_vae:
-        model = PartAwareVAE(
+    if args.no_vae:
+        model = PartAwareAE(
             dim=512,
             latent_dim=args.part_latents_dim,
             heads=8,
@@ -337,7 +344,7 @@ def main(args):
             depth=args.layer_depth,
         ).to(device)
     else:
-        model = PartAwareAE(
+        model = PartAwareVAE(
             dim=512,
             latent_dim=args.part_latents_dim,
             heads=8,
@@ -370,9 +377,16 @@ def main(args):
     )
 
     # Define optimizer, loss scaler, etc.
-    optimizer = AdamWScheduleFree(
-        model_without_ddp.parameters(), lr=args.lr, weight_decay=0.01
-    )
+    if args.schedule_free:
+        optimizer = AdamWScheduleFree(
+            model_without_ddp.parameters(), lr=args.lr, weight_decay=args.weight_decay
+        )
+    else:
+        optimizer = torch.optim.AdamW(
+            model_without_ddp.parameters(),
+            lr=args.lr,
+            weight_decay=args.weight_decay,
+        )
 
     # Start a new wandb run to track this script
     if not args.eval and global_rank == 0:
