@@ -166,6 +166,10 @@ class PartAwareAE(nn.Module):
 
         return logits, part_latents
 
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
 
 class PartAwareVAE(PartAwareAE):
     def __init__(

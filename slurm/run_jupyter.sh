@@ -21,7 +21,8 @@ module purge
 
 # You can use the machine learning module 
 module load machine_learning/2023.01
-module load cuda/12.2
+module load cuda/11.7
+
 # or you can activate the conda environment directly by uncommenting the following lines
 #export ENV_PREFIX=$PWD/env
 #conda activate $ENV_PREFIX

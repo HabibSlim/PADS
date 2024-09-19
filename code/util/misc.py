@@ -187,6 +187,10 @@ class MetricLogger(object):
             loss_str.append("{}: {}".format(name, str(meter)))
         return self.delimiter.join(loss_str)
 
+    def reset(self):
+        for name, meter in self.meters.items():
+            self.meters[name] = SmoothedValue(fmt="{avg:.4f}")
+
     def synchronize_between_processes(self):
         for meter in self.meters.values():
             meter.synchronize_between_processes()

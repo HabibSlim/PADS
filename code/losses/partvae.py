@@ -4,6 +4,7 @@ Defining loss functions used for the PartVAE model.
 
 import torch
 from torch.nn import functional as F
+from torch_linear_assignment import batch_linear_assignment
 
 
 class KLRecLoss:
@@ -22,6 +23,48 @@ class KLRecLoss:
             kl = kl[mask]
         loss_kl = torch.sum(kl) / kl.shape[0]
         return loss_kl.mean()
+
+
+class RecLoss:
+    """
+    Set reconstruction loss for the global latents.
+    Each x and x_rec are of shape B x 512 x 8.
+    First match the vectors in sets x and x_rec
+    using the linear assignment algorithm (each latent vector is of size 512).
+    Then, calculate the MSE loss between the matched vectors.
+    Return the mean of the losses.
+    """
+
+    def __init__(self):
+        pass
+
+    def __call__(self, x, x_rec):
+        """
+        Call the loss function.
+        """
+        B, D, N = (
+            x.shape
+        )  # B: batch size, D: latent dimension (512), N: number of vectors (8)
+
+        # Reshape x and x_rec to (B, N, D) for easier processing
+        x = x.transpose(1, 2)
+        x_rec = x_rec.transpose(1, 2)
+
+        # Compute the cost matrix using cdist
+        cost_matrix = torch.cdist(x, x_rec)
+
+        # Compute the linear assignment
+        assignment = batch_linear_assignment(cost_matrix)
+
+        # Compute the loss
+        total_loss = 0
+        for b in range(B):
+            x_matched = x[b, assignment[b, 0]]
+            x_rec_matched = x_rec[b, assignment[b, 1]]
+            loss = F.mse_loss(x_matched, x_rec_matched)
+            total_loss += loss
+
+        return total_loss / B
 
 
 class ScaleInvariantLoss:

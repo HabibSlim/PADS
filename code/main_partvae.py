@@ -131,6 +131,12 @@ def get_args_parser():
         type=str,
         help="Dataset path",
     )
+    parser.add_argument(
+        "--overfit",
+        action="store_true",
+        default=False,
+        help="Overfit to a single batch to debug",
+    )
 
     # Checkpointing parameters
     parser.add_argument(
@@ -192,10 +198,14 @@ def init_dataloaders(args):
     Instantiate appropriate data loaders.
     """
     # Create your datasets
+    filter_n_ids = 1 if args.overfit else None
     dataset_train = ShapeLatentDataset(
-        args.data_path, split="train", shuffle_parts=True
+        args.data_path, split="train", shuffle_parts=True, filter_n_ids=filter_n_ids
     )
-    dataset_val = ShapeLatentDataset(args.data_path, split="test", shuffle_parts=False)
+    dataset_val = ShapeLatentDataset(
+        args.data_path, split="test", shuffle_parts=False, filter_n_ids=filter_n_ids
+    )
+    args.batch_size = 2 if args.overfit else args.batch_size
 
     # Defining selected contrastive pairs
     pair_types = [PairType.NO_ROT_PAIR, PairType.PART_DROP]

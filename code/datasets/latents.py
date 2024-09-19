@@ -33,6 +33,7 @@ class ShapeLatentDataset(Dataset):
         shuffle_parts=True,
         class_code=None,
         split=None,
+        filter_n_ids=None,
     ):
         exclude_types = set(exclude_types) if exclude_types else set()
         self.shuffle_parts = shuffle_parts
@@ -84,6 +85,22 @@ class ShapeLatentDataset(Dataset):
             model_id = basename.split("_")[0:2][0] + basename.split("_")[0:2][1]
             model_id = int(model_id, 16)
             self.file_tuples += [(latent_f, bb_coords_f, bb_labels_f, model_id)]
+
+        if filter_n_ids is not None:
+            # Only keep the sampels corresponding to N=filter_n_ids distinct model IDs
+            unique_model_ids = list(set(tup[3] for tup in self.file_tuples))
+            random.shuffle(unique_model_ids)
+            selected_model_ids = set(unique_model_ids[:filter_n_ids])
+
+            self.file_tuples = [
+                tuple for tuple in self.file_tuples if tuple[3] in selected_model_ids
+            ]
+            filtered_file_paths = [tuple[0] for tuple in self.file_tuples]
+            self.file_list = [
+                sublist
+                for sublist in self.file_list
+                if os.path.join(latents_dir, sublist[0]) in filtered_file_paths
+            ]
 
         self.rng = torch.Generator()
 
