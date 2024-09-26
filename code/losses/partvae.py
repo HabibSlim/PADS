@@ -49,6 +49,7 @@ class RecLoss:
         B, N, D = (
             x.shape
         )  # B: batch size, N: number of vectors (8), D: latent dimension (512)
+        assert N < D, "Number of vectors should be less than the latent dimension."
 
         # Compute the cost matrix using cdist
         cost_matrix = torch.cdist(x, x_rec, p=2)

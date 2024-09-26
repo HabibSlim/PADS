@@ -1,12 +1,13 @@
+import torch
 from torch import nn
-from models.partencoder import PartAwareEncoder
 from models.modules import (
     Attention,
     DiagonalGaussianDistribution,
-    StackedAttentionBlocks,
     GEGLU,
     PreNorm,
+    StackedAttentionBlocks,
 )
+from models.partqueries import PartQueriesGenerator
 
 
 class PartAwareAE(nn.Module):
@@ -20,7 +21,7 @@ class PartAwareAE(nn.Module):
         dim_head=64,
         depth=2,
         weight_tie_layers=False,
-        use_attention_masking=False,
+        use_attention_masking=True,
     ):
         super().__init__()
 
@@ -30,7 +31,7 @@ class PartAwareAE(nn.Module):
         self.use_attention_masking = use_attention_masking
 
         # Encoder
-        self.encoder = PartAwareEncoder(
+        self.encoder = PartQueriesGenerator(
             dim=dim,
             latent_dim=latent_dim,
             max_parts=max_parts,
@@ -39,13 +40,15 @@ class PartAwareAE(nn.Module):
             dim_head=dim_head,
             depth=depth,
             weight_tie_layers=weight_tie_layers,
-            use_attention_masking=False,
+            use_attention_masking=use_attention_masking,
         )
 
         # Decoder components
         self.in_decode = PreNorm(
             dim, Attention(dim, dim, heads=in_heads, dim_head=dim), context_dim=dim
         )
+
+        self.decode_proj = nn.Linear(dim * 2, dim)
         self.out_proj = nn.Linear(24, 8)
 
         # Stacked Attention Layers for decoder
@@ -63,12 +66,12 @@ class PartAwareAE(nn.Module):
     def decode(self, part_latents, bb_embeds, batch_mask):
         x = self.expand_latents(part_latents)
         mask = batch_mask if self.use_attention_masking else None
-        x = self.in_decode(x, context=bb_embeds, mask=mask)
+        x = torch.cat([x, bb_embeds], dim=-1)
+        x = self.decode_proj(x)
+        x = self.in_decode(x, mask=mask)  # , context=bb_embeds
         x = self.decoder_layers(x)
-
-        latents = self.out_proj(x.transpose(1, 2))
-
-        return latents
+        x = self.out_proj(x.transpose(1, 2))
+        return x
 
     def forward(self, latents, part_bbs, part_labels, batch_mask):
         part_latents, bb_embeds = self.encoder(

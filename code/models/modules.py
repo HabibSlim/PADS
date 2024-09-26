@@ -11,26 +11,6 @@ from torch import einsum, nn
 from util.misc import default
 
 
-class PreNorm(nn.Module):
-    def __init__(self, dim, fn, context_dim=None):
-        super().__init__()
-        self.fn = fn
-        self.norm = nn.LayerNorm(dim)
-        self.norm_context = (
-            nn.LayerNorm(context_dim) if context_dim is not None else None
-        )
-
-    def forward(self, x, **kwargs):
-        x = self.norm(x)
-
-        if self.norm_context is not None:
-            context = kwargs["context"]
-            normed_context = self.norm_context(context)
-            kwargs.update(context=normed_context)
-
-        return self.fn(x, **kwargs)
-
-
 class GEGLU(nn.Module):
     def forward(self, x):
         x, gates = x.chunk(2, dim=-1)
@@ -106,13 +86,33 @@ class Attention(nn.Module):
         return self.drop_path(self.to_out(out))
 
 
+class PreNorm(nn.Module):
+    def __init__(self, dim, fn, context_dim=None):
+        super().__init__()
+        self.fn = fn
+        self.norm = nn.LayerNorm(dim)
+        self.norm_context = (
+            nn.LayerNorm(context_dim) if context_dim is not None else None
+        )
+
+    def forward(self, x, **kwargs):
+        x = self.norm(x)
+
+        if self.norm_context is not None:
+            context = kwargs.get("context", x)
+            normed_context = self.norm_context(context)
+            kwargs.update(context=normed_context)
+
+        return self.fn(x, **kwargs)
+
+
 class AttentionBlock(nn.Module):
     def __init__(
         self,
         dim,
         heads,
         dim_head,
-        drop_path_rate=0.1,
+        drop_path_rate=0.0,
         use_geglu=True,
     ):
         super().__init__()

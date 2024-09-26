@@ -86,9 +86,10 @@ class PartEmbed(nn.Module):
         return part_embeds, labels_embed, bb_embeds
 
 
-class PartAwareEncoder(nn.Module):
+class PartQueriesGenerator(nn.Module):
     """
-    Generating a set of part-aware latents from a set of part bounding boxes and part labels: "part queries".
+    Generating a set of part-aware latents
+    from a set of part bounding boxes and part labels: "part queries".
     """
 
     def __init__(
@@ -101,47 +102,74 @@ class PartAwareEncoder(nn.Module):
         dim_head=64,
         depth=2,
         weight_tie_layers=False,
-        use_attention_masking=False,
+        use_attention_masking=True,
     ):
         super().__init__()
 
-        self.dim = dim
         self.latent_dim = latent_dim
         self.max_parts = max_parts
         self.use_attention_masking = use_attention_masking
 
         # Part Embeddings
         self.part_embed = PartEmbed(dim)
+        self.embed_proj = nn.Sequential(
+            nn.Linear(dim, dim),
+            nn.ReLU(),
+            nn.Linear(dim, dim),
+        )
 
         # Input Cross-Attention Block
         self.in_encode = PreNorm(
             dim, Attention(dim, dim, heads=in_heads, dim_head=dim), context_dim=dim
         )
-        self.in_proj = nn.Linear(8, 24)
 
-        # Stacked Attention Layers
-        self.encoder_layers = StackedAttentionBlocks(
-            dim, depth, heads, dim_head, weight_tie_layers
+        # Replace repeat with learnable projection
+        self.latent_proj = nn.Sequential(
+            nn.Linear(dim, dim),
+            nn.ReLU(),
+            nn.Linear(dim, dim),
         )
 
-        # Compress latents
+        # Stacked Attention Layers
+        self.encoder_layers = nn.Identity()
+        if depth > 0:
+            self.encoder_layers = StackedAttentionBlocks(
+                dim, depth, heads, dim_head, weight_tie_layers
+            )
+
+        # Compress latents to latent dimension
         self.compress_latents = nn.Sequential(
             nn.Linear(dim, dim),
-            GEGLU(),
-            nn.Linear(dim // 2, latent_dim),
+            nn.ReLU(),
+            nn.Linear(dim, latent_dim),
         )
 
     def forward(self, latents, part_bbs, part_labels, batch_mask):
+        """
+        :param latents:     B x 512 x 8
+        :param part_bbs:    B x 24 x 4 x 3
+        :param part_labels: B x 24
+        :param batch_mask:  B x 24
+        """
         # Embed part labels and bounding boxes
         part_embeds, labels_embed, bb_embeds = self.part_embed(
             part_bbs, part_labels, batch_mask
         )
-        latents_in = self.in_proj(latents).transpose(1, 2)
+
+        # Apply learnable projection instead of repeat
+        latents_kv = latents.transpose(1, 2).repeat(1, 3, 1)  # B x 24 x 512
+        latents_kv = self.latent_proj(latents_kv)
+
+        # Concatenate part embeddings with latents
+        part_embeds = self.embed_proj(part_embeds)  # B x 24 x 512
 
         # Encode part embeddings
         mask = batch_mask if self.use_attention_masking else None
-        x = self.in_encode(part_embeds, context=latents_in, mask=mask)
-        x = self.encoder_layers(x)
-        part_latents = self.compress_latents(x)  # B x 128 x 24
-
+        x = self.in_encode(part_embeds, context=latents_kv, mask=mask)  # B x 24 x 512
+        x = self.encoder_layers(x)  # B x 24 x 512
+        part_latents = self.compress_latents(x)  # B x 24 x 512
         return part_latents, part_embeds
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
