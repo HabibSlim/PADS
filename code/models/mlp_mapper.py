@@ -1,6 +1,7 @@
 """
 MLP-based latent mapper for text-conditioned shape editing.
 """
+
 import torch
 import torch.nn.functional as F
 from torch import nn

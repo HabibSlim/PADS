@@ -6,12 +6,24 @@ import math
 import sys
 
 import torch
-from torch.nn import functional as F
+import torch.nn as nn
 import util.misc as misc
 import wandb
-from losses.partvae import KLRecLoss, ScaleInvariantLoss, PartDropLoss
+from losses.partvae import RecLoss, KLRecLoss, ScaleInvariantLoss, PartDropLoss
 
 PRINT_FREQ = 50
+
+
+def get_losses():
+    """
+    Instantiate the losses.
+    """
+    return (
+        RecLoss(),
+        KLRecLoss(),
+        ScaleInvariantLoss(),
+        PartDropLoss(),
+    )
 
 
 class PairType:
@@ -22,23 +34,24 @@ class PairType:
 def forward_pass(
     pvae,
     data_tuple,
+    rec_loss,
     kl_rec_loss,
     scale_inv_loss,
     part_drop_loss,
-    pair_types,
 ):
     """
     Compute a single forward pass of the model.
     """
+    device = pvae.device
+
     # Unpack the data tuple
     pair_types, (l_a, bb_a, bb_l_a, meta_a), (l_b, bb_b, bb_l_b, meta_b) = data_tuple
-    device = pvae.device
 
     # Compute the mask from batch labels
     mask_a = (bb_l_a != -1).to(device)  # B x 24
     mask_b = (bb_l_b != -1).to(device)  # B x 24
 
-    l_a, l_b = l_a.to(device), l_b.to(device)  # B x 24 x 512
+    l_a, l_b = l_a.to(device), l_b.to(device)  # B x 8 x 512
     bb_a, bb_b = bb_a.to(device), bb_b.to(device)  # B x 24 x 4 x 3
     bb_l_a, bb_l_b = bb_l_a.to(device), bb_l_b.to(device)  # B x 24
 
@@ -64,8 +77,10 @@ def forward_pass(
         kl_reg = torch.tensor(0.0).to(device)
 
     # L2 loss
-    rec_loss = F.mse_loss(logits_a, l_a) + F.mse_loss(logits_b, l_b)
-    rec_loss /= 2.0
+    rec_loss_value = rec_loss(logits_a, l_a, transpose=True) + rec_loss(
+        logits_b, l_b, transpose=True
+    )
+    rec_loss_value /= 2.0
 
     if pair_types == PairType.NO_ROT_PAIR:
         inv_loss = scale_inv_loss(part_latents_a, part_latents_b, mask_a)
@@ -76,20 +91,9 @@ def forward_pass(
 
     return {
         "kl_reg": kl_reg,
-        "rec_loss": rec_loss,
+        "rec_loss": rec_loss_value,
         "inv_loss": inv_loss,
     }
-
-
-def get_losses():
-    """
-    Instantiate the losses.
-    """
-    return (
-        KLRecLoss(),
-        ScaleInvariantLoss(),
-        PartDropLoss(),
-    )
 
 
 def train_one_epoch(
@@ -111,7 +115,7 @@ def train_one_epoch(
     optimizer.zero_grad()
 
     # Instantiate the losses
-    kl_loss, scale_inv_loss, part_drop_loss = get_losses()
+    rec_loss, kl_loss, scale_inv_loss, part_drop_loss = get_losses()
 
     data_seen = False
     for data_step, data_tuple in enumerate(
@@ -121,11 +125,12 @@ def train_one_epoch(
         loss = forward_pass(
             pvae=model,
             data_tuple=data_tuple,
+            rec_loss=rec_loss,
             kl_rec_loss=kl_loss,
             scale_inv_loss=scale_inv_loss,
             part_drop_loss=part_drop_loss,
-            pair_types=PairType.PART_DROP,
         )
+
         total_loss = (
             args.kl_weight * loss["kl_reg"]
             + args.rec_weight * loss["rec_loss"]
@@ -142,7 +147,13 @@ def train_one_epoch(
         # Backward pass
         total_loss /= accum_iter
         total_loss.backward()
+
+        # Perform gradient clipping
+        if args.clip_grad > 0:
+            nn.utils.clip_grad_norm_(model.parameters(), args.clip_grad)
+
         if (data_step + 1) % accum_iter == 0:
+            optimizer.step()
             optimizer.zero_grad()
         torch.cuda.synchronize()
 
@@ -211,7 +222,7 @@ def evaluate(
     model.eval()
 
     # Instantiate the losses
-    kl_loss, scale_inv_loss, part_drop_loss = get_losses()
+    rec_loss, kl_loss, scale_inv_loss, part_drop_loss = get_losses()
 
     for data_step, data_tuple in enumerate(
         metric_logger.log_every(data_loader, PRINT_FREQ, header)
@@ -220,10 +231,10 @@ def evaluate(
         loss = forward_pass(
             pvae=model,
             data_tuple=data_tuple,
+            rec_loss=rec_loss,
             kl_rec_loss=kl_loss,
             scale_inv_loss=scale_inv_loss,
             part_drop_loss=part_drop_loss,
-            pair_types=PairType.PART_DROP,
         )
         total_loss = (
             args.kl_weight * loss["kl_reg"]

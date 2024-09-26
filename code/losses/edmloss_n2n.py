@@ -2,6 +2,7 @@
 Node to node loss function for the latent diffusion model,
 with a prompt.
 """
+
 import torch
 
 
@@ -31,5 +32,5 @@ class Node2NodeLoss:
         loss = weight * ((D_x_b - x_b) ** 2)
 
         # Clip the loss to avoid NaN
-        loss = torch.clamp(loss, min=-1e3, max=1e3)
+        # loss = torch.clamp(loss, min=-1e3, max=1e3)
         return loss.mean()

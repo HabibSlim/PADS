@@ -38,11 +38,16 @@ class GEGLU(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, dim, mult=4, drop_path_rate=0.0):
+    def __init__(self, dim, mult=4, drop_path_rate=0.0, use_geglu=True):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(dim, dim * mult * 2), GEGLU(), nn.Linear(dim * mult, dim)
-        )
+        if use_geglu:
+            self.net = nn.Sequential(
+                nn.Linear(dim, dim * mult * 2), GEGLU(), nn.Linear(dim * mult, dim)
+            )
+        else:
+            self.net = nn.Sequential(
+                nn.Linear(dim, dim * mult), nn.ReLU(), nn.Linear(dim * mult, dim)
+            )
 
         self.drop_path = (
             DropPath(drop_path_rate) if drop_path_rate > 0.0 else nn.Identity()
@@ -54,7 +59,13 @@ class FeedForward(nn.Module):
 
 class Attention(nn.Module):
     def __init__(
-        self, query_dim, context_dim=None, heads=8, dim_head=64, drop_path_rate=0.0
+        self,
+        query_dim,
+        context_dim=None,
+        heads=8,
+        dim_head=64,
+        drop_path_rate=0.0,
+        use_geglu=True,
     ):
         super().__init__()
         inner_dim = dim_head * heads
@@ -93,6 +104,55 @@ class Attention(nn.Module):
         out = einsum("b i j, b j d -> b i d", attn, v)
         out = rearrange(out, "(b h) n d -> b n (h d)", h=h)
         return self.drop_path(self.to_out(out))
+
+
+class AttentionBlock(nn.Module):
+    def __init__(
+        self,
+        dim,
+        heads,
+        dim_head,
+        drop_path_rate=0.1,
+        use_geglu=True,
+    ):
+        super().__init__()
+        self.attn = PreNorm(
+            dim,
+            Attention(
+                dim,
+                heads=heads,
+                dim_head=dim_head,
+                drop_path_rate=drop_path_rate,
+                use_geglu=use_geglu,
+            ),
+        )
+        self.ff = PreNorm(dim, FeedForward(dim, drop_path_rate=drop_path_rate))
+
+    def forward(self, x):
+        x = self.attn(x) + x
+        x = self.ff(x) + x
+        return x
+
+
+class StackedAttentionBlocks(nn.Module):
+    def __init__(
+        self, dim, depth, heads, dim_head, weight_tie_layers=False, use_geglu=True
+    ):
+        super().__init__()
+
+        self.layers = nn.ModuleList([])
+        for _ in range(depth):
+            self.layers.append(
+                AttentionBlock(dim, heads, dim_head, use_geglu=use_geglu)
+            )
+
+        if weight_tie_layers:
+            self.layers = nn.ModuleList([self.layers[0]] * depth)
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
 
 
 class PointEmbed(nn.Module):
@@ -144,6 +204,22 @@ class PointEmbed(nn.Module):
             torch.cat([self.embed(input, self.basis), input], dim=2)
         )  # B x N x C
         return embed
+
+
+class CartesianPosEmbed(nn.Module):
+    def __init__(self, n_latents, latent_dim):
+        super().__init__()
+        self.projection = nn.Conv2d(4, n_latents, 1)
+        self.register_buffer("pe", self.build_grid(latent_dim).unsqueeze(0))
+
+    def build_grid(self, side_length):
+        coords = torch.linspace(0.0, 1.0, side_length + 1)
+        coords = 0.5 * (coords[:-1] + coords[1:])
+        grid_y, grid_x = torch.meshgrid(coords, coords, indexing="xy")
+        return torch.stack((grid_x, grid_y, 1 - grid_x, 1 - grid_y), dim=0)
+
+    def forward(self, inputs):
+        return inputs + self.projection(self.pe)
 
 
 class DiagonalGaussianDistribution(object):

@@ -1,12 +1,12 @@
 #!/bin/bash --login
-#SBATCH --time=10:00:00
+#SBATCH --time=12:00:00
 #SBATCH --nodes=1
-#SBATCH --mem=128G
+#SBATCH --mem=32G
+#SBATCH --cpus-per-gpu=1
 #SBATCH --partition=batch
-##SBATCH --gres=gpu:v100:1
-#SBATCH --gpus=1
-#SBATCH --job-name=jupyter_nb
+#SBATCH --gres=gpu:v100:1
 #SBATCH --mail-type=ALL
+#SBATCH --job-name=jupyter_nb
 #SBATCH --output=out/jupyter-nb.out
 #SBATCH --error=out/jupyter-nb.err 
 #SBATCH --account conf-iclr-2025.10.01-elhosemh

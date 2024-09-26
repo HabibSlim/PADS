@@ -500,11 +500,12 @@ class ComposedPairedShapesLoader:
     def __iter__(self):
         if self.loaders is None:
             self.create_loaders()
-        iterators = [(pair_types, iter(loader)) for pair_types, loader in self.loaders]
         while True:
-            for pair_types, iterator in iterators:
+            for pair_types, loader in [
+                (pair_types, loader) for pair_types, loader in self.loaders
+            ]:
                 try:
-                    yield pair_types, *next(iterator)
+                    yield pair_types, *next(loader)
                 except StopIteration:
                     return
 

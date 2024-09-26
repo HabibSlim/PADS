@@ -104,6 +104,14 @@ def get_args_parser():
         help="Use schedule-free optimizer",
     )
 
+    # Gradient clipping
+    parser.add_argument(
+        "--clip_grad",
+        type=float,
+        default=5.0,
+        help="Gradient clipping value",
+    )
+
     # Loss weights
     parser.add_argument(
         "--kl_weight",
@@ -362,6 +370,7 @@ def main(args):
             depth=args.layer_depth,
         ).to(device)
     model.to(device)
+    # model = torch.compile(model, mode="max-autotune")
     model_without_ddp = model
 
     # Print param count in human readable format
