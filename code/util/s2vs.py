@@ -106,6 +106,9 @@ def decode_latents(ae, latent, grid_density=128, batch_size=None, smooth_volume=
     """
     Decode latents to a mesh using marching cubes.
     """
+    B, N, D = latent.shape
+    assert B == 1, "Batch size must be 1."
+
     with torch.inference_mode():
         logits = query_latents_grid(ae, latent, grid_density, batch_size)
         volume = (

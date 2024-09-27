@@ -1,6 +1,7 @@
 """
 Transformer-based diffusion model for text-conditioned shape editing.
 """
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -425,6 +426,7 @@ class EDMPrecond(torch.nn.Module):
         d_head=64,
         depth=12,
         out_channels=None,
+        make_embeds=False,
     ):
         super().__init__()
         self.n_latents = n_latents
@@ -444,6 +446,13 @@ class EDMPrecond(torch.nn.Module):
             out_channels=self.out_channels,
         )
 
+        if make_embeds:
+            self.category_emb = nn.Embedding(55, n_heads * d_head)
+            self.make_embeds = True
+
+    def emb_category(self, class_labels):
+        return self.category_emb(class_labels).unsqueeze(1)
+
     def forward(self, x, sigma, cond_emb=None, force_fp32=False, **model_kwargs):
         x = x.to(torch.float32)
         sigma = sigma.to(torch.float32).reshape(-1, 1, 1)
@@ -452,7 +461,8 @@ class EDMPrecond(torch.nn.Module):
             if (self.use_fp16 and not force_fp32 and x.device.type == "cuda")
             else torch.float32
         )
-
+        if self.make_embeds:
+            cond_emb = self.category_emb(cond_emb).unsqueeze(1)
         c_skip = self.sigma_data**2 / (sigma**2 + self.sigma_data**2)
         c_out = sigma * self.sigma_data / (sigma**2 + self.sigma_data**2).sqrt()
         c_in = 1 / (self.sigma_data**2 + sigma**2).sqrt()
@@ -469,7 +479,7 @@ class EDMPrecond(torch.nn.Module):
         return torch.as_tensor(sigma)
 
     @torch.no_grad()
-    def sample(self, cond, batch_seeds=None):
+    def sample(self, cond, batch_seeds=None, num_steps=18):
         if cond is not None:
             batch_size, device = *cond.shape, cond.device
             if batch_seeds is None:
@@ -481,7 +491,9 @@ class EDMPrecond(torch.nn.Module):
         rnd = StackedRandomGenerator(device, batch_seeds)
         latents = rnd.randn([batch_size, self.n_latents, self.channels], device=device)
 
-        return edm_sampler(self, latents, cond, randn_like=rnd.randn_like)
+        return edm_sampler(
+            self, latents, cond, randn_like=rnd.randn_like, num_steps=num_steps
+        )
 
 
 class EDMConcatPrecond(torch.nn.Module):
@@ -771,50 +783,55 @@ class EDMTextCondNoCA(torch.nn.Module):
         )
 
 
-def kl_d512_m512_l8_edm(use_linear_proj):
+def kl_d512_m512_l8_d24():
+    model = EDMPrecond(n_latents=512, channels=8, depth=24, make_embeds=True)
+    return model
+
+
+def kl_d512_m512_l8_edit(use_linear_proj):
     model = EDMTextCond(n_latents=512, channels=8, use_linear_proj=use_linear_proj)
     return model
 
 
-def kl_d512_m512_l16_edm(use_linear_proj):
+def kl_d512_m512_l16_edit(use_linear_proj):
     model = EDMTextCond(n_latents=512, channels=16, use_linear_proj=use_linear_proj)
     return model
 
 
-def kl_d512_m512_l32_edm(use_linear_proj):
+def kl_d512_m512_l32_edit(use_linear_proj):
     model = EDMTextCond(n_latents=512, channels=32, use_linear_proj=use_linear_proj)
     return model
 
 
-def kl_d512_m512_l4_d24_edm(use_linear_proj):
+def kl_d512_m512_l4_d24_edit(use_linear_proj):
     model = EDMTextCond(
         n_latents=512, channels=4, depth=24, use_linear_proj=use_linear_proj
     )
     return model
 
 
-def kl_d512_m512_l8_d24_edm(use_linear_proj):
+def kl_d512_m512_l8_d24_edit(use_linear_proj):
     model = EDMTextCond(
         n_latents=512, channels=8, depth=24, use_linear_proj=use_linear_proj
     )
     return model
 
 
-def kl_d512_m512_l32_d24_edm(use_linear_proj):
+def kl_d512_m512_l32_d24_edit(use_linear_proj):
     model = EDMTextCond(
         n_latents=512, channels=32, depth=24, use_linear_proj=use_linear_proj
     )
     return model
 
 
-def kl_d512_m512_l8_d24_no_ca_edm(use_linear_proj):
+def kl_d512_m512_l8_d24_no_ca_edit(use_linear_proj):
     model = EDMTextCondNoCA(
         n_latents=512, channels=8, depth=24, use_linear_proj=use_linear_proj
     )
     return model
 
 
-def kl_d512_m512_l8_d24_no_ca_edm__deep_proj(use_linear_proj):
+def kl_d512_m512_l8_d24_no_ca_edit__deep_proj(use_linear_proj):
     model = EDMTextCondNoCA(
         n_latents=512,
         channels=8,

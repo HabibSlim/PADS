@@ -544,7 +544,7 @@ def save_bert(args, epoch, text_model):
     )
 
 
-def load_model(args, model_without_ddp, optimizer, loss_scaler=None):
+def load_model(args, model_without_ddp, optimizer=None, loss_scaler=None):
     if args.resume.startswith("https"):
         checkpoint = torch.hub.load_state_dict_from_url(
             args.resume, map_location="cpu", check_hash=True
@@ -554,7 +554,8 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler=None):
     model_without_ddp.load_state_dict(checkpoint["model"])
     print("Resume checkpoint %s" % args.resume)
     if (
-        "optimizer" in checkpoint
+        optimizer is not None
+        and "optimizer" in checkpoint
         and "epoch" in checkpoint
         and not (hasattr(args, "eval") and args.eval)
     ):
