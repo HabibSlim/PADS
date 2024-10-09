@@ -230,11 +230,14 @@ def class_to_hex(class_name):
     return int_to_hex(COMPAT_CLASSES[class_name])
 
 
-def class_to_idx(class_name):
+def class_to_idx(class_name, dataset="compat"):
     """
     Convert class name to index.
     """
-    return COMPAT_CLASSES[class_name]
+    if dataset == "shapenet":
+        return SHAPENET_NAME_TO_SYNSET_INDEX[class_name]
+    elif dataset == "compat":
+        return COMPAT_CLASSES[class_name]
 
 
 def apply_transform(pc, transform_mat):

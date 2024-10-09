@@ -1,6 +1,7 @@
 """
 Main training script for class conditional diffusion models.
 """
+
 import argparse
 import datetime
 import json

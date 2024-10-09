@@ -2,12 +2,11 @@
 Transformer-based diffusion model for text-conditioned shape editing.
 """
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-from timm.models.layers import DropPath
+import models.sampling as smp
 
 
 def zero_module(module):
@@ -56,7 +55,7 @@ class CrossAttention(nn.Module):
             nn.Linear(inner_dim, query_dim), nn.Dropout(dropout)
         )
 
-    def forward(self, x, context=None, mask=None):
+    def forward(self, x, context=None):
         h = self.heads
         q = self.to_q(x)
 
@@ -144,6 +143,7 @@ class BasicTransformerBlock(nn.Module):
         context_dim=None,
         gated_ff=True,
         checkpoint=True,
+        init_values=0,
     ):
         super().__init__()
         self.attn1 = CrossAttention(
@@ -162,28 +162,22 @@ class BasicTransformerBlock(nn.Module):
         self.norm3 = AdaLayerNorm(dim)
         self.checkpoint = checkpoint
 
-        init_values = 0
-        drop_path = 0.0
-
         self.ls1 = (
             LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
         )
-        self.drop_path1 = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
         self.ls2 = (
             LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
         )
-        self.drop_path2 = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
         self.ls3 = (
             LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
         )
-        self.drop_path3 = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
     def forward(self, x, t, context=None):
-        x = self.drop_path1(self.ls1(self.attn1(self.norm1(x, t)))) + x
-        x = self.drop_path2(self.ls2(self.attn2(self.norm2(x, t), context=context))) + x
-        x = self.drop_path3(self.ls3(self.ff(self.norm3(x, t)))) + x
+        x = self.ls1(self.attn1(self.norm1(x, t))) + x
+        x = self.ls2(self.attn2(self.norm2(x, t), context=context)) + x
+        x = self.ls3(self.ff(self.norm3(x, t))) + x
         return x
 
 
@@ -258,133 +252,6 @@ class LatentArrayTransformer(nn.Module):
         return x
 
 
-def edm_sampler(
-    net,
-    latents,
-    class_labels=None,
-    randn_like=torch.randn_like,
-    num_steps=18,
-    sigma_min=0.002,
-    sigma_max=80,
-    rho=7,
-    S_churn=0,
-    S_min=0,
-    S_max=float("inf"),
-    S_noise=1,
-):
-    # Adjust noise levels based on what's supported by the network.
-    sigma_min = max(sigma_min, net.sigma_min)
-    sigma_max = min(sigma_max, net.sigma_max)
-
-    # Time step discretization.
-    step_indices = torch.arange(num_steps, dtype=torch.float64, device=latents.device)
-    t_steps = (
-        sigma_max ** (1 / rho)
-        + step_indices
-        / (num_steps - 1)
-        * (sigma_min ** (1 / rho) - sigma_max ** (1 / rho))
-    ) ** rho
-    t_steps = torch.cat(
-        [net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])]
-    )  # t_N = 0
-
-    # Main sampling loop.
-    x_next = latents.to(torch.float64) * t_steps[0]
-    for i, (t_cur, t_next) in enumerate(zip(t_steps[:-1], t_steps[1:])):  # 0, ..., N-1
-        x_cur = x_next
-
-        # Increase noise temporarily.
-        gamma = (
-            min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
-        )
-        t_hat = net.round_sigma(t_cur + gamma * t_cur)
-        x_hat = x_cur + (t_hat**2 - t_cur**2).sqrt() * S_noise * randn_like(x_cur)
-
-        # Euler step.
-        denoised = net(x_hat, t_hat, class_labels).to(torch.float64)
-        d_cur = (x_hat - denoised) / t_hat
-        x_next = x_hat + (t_next - t_hat) * d_cur
-
-        # Apply 2nd order correction.
-        if i < num_steps - 1:
-            denoised = net(x_next, t_next, class_labels).to(torch.float64)
-            d_prime = (x_next - denoised) / t_next
-            x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
-
-    return x_next
-
-
-@torch.inference_mode()
-def edm_sampler_text(
-    net,
-    x_a,
-    x_b,
-    embeds_ab=None,
-    randn_like=torch.randn_like,
-    num_steps=18,
-    sigma_min=0.002,
-    sigma_max=80,
-    rho=7,
-    S_churn=0,
-    S_min=0,
-    S_max=float("inf"),
-    S_noise=1,
-    get_all_steps=False,
-):
-    # Adjust noise levels based on what's supported by the network.
-    sigma_min = max(sigma_min, net.sigma_min)
-    sigma_max = min(sigma_max, net.sigma_max)
-
-    # Time step discretization.
-    step_indices = torch.arange(num_steps, dtype=torch.float64, device=x_b.device)
-    t_steps = (
-        sigma_max ** (1 / rho)
-        + step_indices
-        / (num_steps - 1)
-        * (sigma_min ** (1 / rho) - sigma_max ** (1 / rho))
-    ) ** rho
-    t_steps = torch.cat(
-        [net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])]
-    )  # t_N = 0
-
-    if get_all_steps:
-        all_steps = []
-
-    # Main sampling loop.
-    x_next = x_b.to(torch.float64) * t_steps[0]
-    for i, (t_cur, t_next) in enumerate(zip(t_steps[:-1], t_steps[1:])):  # 0, ..., N-1
-        x_cur = x_next
-
-        # Increase noise temporarily.
-        gamma = (
-            min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
-        )
-        t_hat = net.round_sigma(t_cur + gamma * t_cur)
-        x_hat = x_cur + (t_hat**2 - t_cur**2).sqrt() * S_noise * randn_like(x_cur)
-
-        # Euler step.
-        denoised = net(x_a=x_a, x_b=x_hat, sigma=t_hat, cond_emb=embeds_ab).to(
-            torch.float64
-        )
-        d_cur = (x_hat - denoised) / t_hat
-        x_next = x_hat + (t_next - t_hat) * d_cur
-
-        # Apply 2nd order correction.
-        if i < num_steps - 1:
-            denoised = net(x_a=x_a, x_b=x_next, sigma=t_next, cond_emb=embeds_ab).to(
-                torch.float64
-            )
-            d_prime = (x_next - denoised) / t_next
-            x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
-
-        if get_all_steps:
-            all_steps.append(x_next.detach().cpu())
-
-    if get_all_steps:
-        return all_steps
-    return x_next
-
-
 class StackedRandomGenerator:
     def __init__(self, device, seeds):
         super().__init__()
@@ -410,6 +277,112 @@ class StackedRandomGenerator:
                 torch.randint(*args, size=size[1:], generator=gen, **kwargs)
                 for gen in self.generators
             ]
+        )
+
+
+class EDMPartQueries(torch.nn.Module):
+    def __init__(
+        self,
+        part_queries_encoder,
+        n_latents=512,
+        channels=8,
+        use_fp16=False,
+        sigma_min=0,
+        sigma_max=float("inf"),
+        sigma_data=1,
+        n_heads=8,
+        d_head=64,
+        depth=12,
+        out_channels=None,
+    ):
+        super().__init__()
+        self.pqe = part_queries_encoder
+        self.n_latents = n_latents
+        self.channels = channels
+        self.use_fp16 = use_fp16
+        self.sigma_min = sigma_min
+        self.sigma_max = sigma_max
+        self.sigma_data = sigma_data
+        self.out_channels = channels if out_channels is None else out_channels
+
+        self.model = LatentArrayTransformer(
+            in_channels=channels,
+            t_channels=256,
+            n_heads=n_heads,
+            d_head=d_head,
+            depth=depth,
+            out_channels=self.out_channels,
+        )
+        self.dtype = torch.float16 if use_fp16 else torch.float32
+
+    def edm_forward(self, x, sigma, cond):
+        c_skip = self.sigma_data**2 / (sigma**2 + self.sigma_data**2)
+        c_out = sigma * self.sigma_data / (sigma**2 + self.sigma_data**2).sqrt()
+        c_in = 1 / (self.sigma_data**2 + sigma**2).sqrt()
+        c_noise = sigma.log() / 4
+        c_noise = c_noise.to(self.dtype)
+
+        F_x = self.model((c_in * x).to(self.dtype), c_noise.flatten(), cond)
+        D_x = c_skip * x + c_out * F_x.to(self.dtype)
+
+        return D_x
+
+    def forward(self, samples, sigma):
+        # Unpack the data
+        x, part_bbs, part_labels, batch_mask = samples
+
+        x = x.to(self.dtype)
+        part_bbs = part_bbs.to(self.dtype)
+        sigma = sigma.to(self.dtype).reshape(-1, 1, 1)
+
+        # Compute part queries condition
+        cond, part_queries = self.pqe(x, part_bbs, part_labels, batch_mask)
+
+        return self.edm_forward(x=x, sigma=sigma, cond=cond), part_queries
+
+    def round_sigma(self, sigma):
+        return torch.as_tensor(sigma)
+
+    @torch.no_grad()
+    def sample(self, cond, batch_seeds=None, num_steps=18):
+        if cond is not None:
+            batch_size, device = cond.shape[0], cond.device
+            if batch_seeds is None:
+                batch_seeds = torch.arange(batch_size)
+        else:
+            device = batch_seeds.device
+            batch_size = batch_seeds.shape[0]
+
+        rnd = StackedRandomGenerator(device, batch_seeds)
+        latents = rnd.randn([batch_size, self.n_latents, self.channels], device=device)
+
+        return smp.edm_sampler_cond(
+            net=self,
+            latents=latents,
+            cond=cond,
+            randn_like=rnd.randn_like,
+            num_steps=num_steps,
+        )
+
+    @torch.no_grad()
+    def sample_from_latents(self, cond, batch_seeds=None, num_steps=18):
+        if cond is not None:
+            batch_size, device = cond.shape[0], cond.device
+            if batch_seeds is None:
+                batch_seeds = torch.arange(batch_size)
+        else:
+            device = batch_seeds.device
+            batch_size = batch_seeds.shape[0]
+
+        rnd = StackedRandomGenerator(device, batch_seeds)
+        latents = rnd.randn([batch_size, self.n_latents, self.channels], device=device)
+
+        return smp.edm_sampler_cond(
+            net=self,
+            latents=latents,
+            cond=cond,
+            randn_like=rnd.randn_like,
+            num_steps=num_steps,
         )
 
 
@@ -491,7 +464,7 @@ class EDMPrecond(torch.nn.Module):
         rnd = StackedRandomGenerator(device, batch_seeds)
         latents = rnd.randn([batch_size, self.n_latents, self.channels], device=device)
 
-        return edm_sampler(
+        return smp.edm_sampler(
             self, latents, cond, randn_like=rnd.randn_like, num_steps=num_steps
         )
 
@@ -613,7 +586,7 @@ class EDMTextCond(torch.nn.Module):
             device=device,
         )
 
-        return edm_sampler_text(
+        return smp.edm_sampler_text(
             self.edm_model,
             x_a=x_a,
             x_b=x_b,
@@ -773,7 +746,7 @@ class EDMTextCondNoCA(torch.nn.Module):
             device=device,
         )
 
-        return edm_sampler_text(
+        return smp.edm_sampler_text(
             self.edm_model,
             x_a=x_a,
             x_b=x_b,
@@ -785,6 +758,29 @@ class EDMTextCondNoCA(torch.nn.Module):
 
 def kl_d512_m512_l8_d24():
     model = EDMPrecond(n_latents=512, channels=8, depth=24, make_embeds=True)
+    return model
+
+
+def kl_d512_m512_l8_d24_pq():
+    from models.part_queries import PartQueriesModel, PartQueriesEncoder
+
+    part_latents_dim = 512
+    pqm = PartQueriesModel(
+        dim=512,
+        latent_dim=part_latents_dim,
+        heads=8,
+        dim_head=64,
+        depth=4,
+    )
+    pqe = PartQueriesEncoder(
+        pqm=pqm,
+        dim=part_latents_dim,
+        input_length=24,
+        output_length=8,
+    )
+    model = EDMPartQueries(
+        part_queries_encoder=pqe, n_latents=512, channels=8, depth=24
+    )
     return model
 
 

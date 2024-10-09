@@ -497,6 +497,22 @@ class ComposedPairedShapesLoader:
         for _, loader in self.loaders:
             loader.set_epoch(epoch)
 
+    def get_tuple(self, device=None):
+        """
+        Get a data tuple for debugging.
+        """
+        for (
+            pair_types,
+            (l_a, bb_a, bb_l_a, meta_a),
+            (l_b, bb_b, bb_l_b, meta_b),
+        ) in self:
+            if device is not None:
+                l_a, bb_a, bb_l_a, l_b, bb_b, bb_l_b = [
+                    t.to(device) for t in [l_a, bb_a, bb_l_a, l_b, bb_b, bb_l_b]
+                ]
+            return l_a, bb_a, bb_l_a, meta_a
+        raise ValueError("No data available")
+
     def __iter__(self):
         if self.loaders is None:
             self.create_loaders()

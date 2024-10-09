@@ -6,7 +6,6 @@ import mcubes
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch_cluster import fps
 from contextlib import nullcontext
 from util.mesh import CUDAMesh
 import models.s2vs as s2vs

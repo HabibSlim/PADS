@@ -1,6 +1,7 @@
 """
 Training and evaluation functions for class-conditional model.
 """
+
 import math
 import sys
 from typing import Iterable

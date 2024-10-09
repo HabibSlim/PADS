@@ -544,6 +544,26 @@ def save_bert(args, epoch, text_model):
     )
 
 
+def transfer_weights(model_a, model_b):
+    """
+    Copy matching weights from model A to model B.
+    """
+    # Get state dictionaries for both models
+    state_dict_a = model_a.state_dict()
+    state_dict_b = model_b.state_dict()
+
+    # Find common keys
+    common_keys = set(state_dict_a.keys()) & set(state_dict_b.keys())
+
+    # Create a new state dict with only the common weights
+    new_state_dict = {k: state_dict_a[k] for k in common_keys}
+
+    # Load the new state dict into model B
+    model_b.load_state_dict(new_state_dict, strict=False)
+
+    return model_b
+
+
 def load_model(args, model_without_ddp, optimizer=None, loss_scaler=None):
     if args.resume.startswith("https"):
         checkpoint = torch.hub.load_state_dict_from_url(
