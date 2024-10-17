@@ -16,6 +16,7 @@ from schedulefree import AdamWScheduleFree
 
 import models.diffusion as dm
 from datasets.latents import ShapeLatentDataset, ComposedPairedShapesLoader, PairType
+from datasets.metadata import class_to_hex
 from engine_pq_dm import evaluate, train_one_epoch
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
@@ -70,6 +71,18 @@ def get_args_parser():
         type=int,
         help="Dimension of the individual part latents",
     )
+    parser.add_argument(
+        "--n_parts",
+        default=24,
+        type=int,
+        help="Number of parts per shape",
+    )
+    parser.add_argument(
+        "--model_name",
+        type=str,
+        default="kl_d512_m512_l8_d24_pq",
+        help="Part queries encoder to use.",
+    )
 
     # Optimizer parameters
     parser.add_argument(
@@ -94,6 +107,18 @@ def get_args_parser():
         action="store_true",
         default=False,
         help="Use schedule-free optimizer",
+    )
+    parser.add_argument(
+        "--transfer_weights",
+        action="store_true",
+        default=False,
+        help="Transfer weights from the base model",
+    )
+    parser.add_argument(
+        "--freeze_dm",
+        action="store_true",
+        default=False,
+        help="Freeze the diffusion model",
     )
 
     # Gradient clipping
@@ -130,6 +155,17 @@ def get_args_parser():
         action="store_true",
         default=False,
         help="Overfit to a single batch to debug",
+    )
+    parser.add_argument(
+        "--category_name",
+        type=str,
+        help="Category name to train on",
+    )
+    parser.add_argument(
+        "--no_part_drop",
+        action="store_true",
+        default=False,
+        help="Disable training on the part drop data",
     )
 
     # Checkpointing parameters
@@ -193,16 +229,31 @@ def init_dataloaders(args):
     """
     # Create your datasets
     filter_n_ids = 1 if args.overfit else None
-    dataset_train = ShapeLatentDataset(
-        args.data_path, split="train", shuffle_parts=True, filter_n_ids=filter_n_ids
+    class_code = (
+        class_to_hex(args.category_name) if args.category_name != "all" else None
     )
+
+    dataset_train = ShapeLatentDataset(
+        args.data_path,
+        split="train",
+        shuffle_parts=True,
+        filter_n_ids=filter_n_ids,
+        class_code=class_code,
+    )
+
     dataset_val = ShapeLatentDataset(
-        args.data_path, split="test", shuffle_parts=False, filter_n_ids=filter_n_ids
+        args.data_path,
+        split="test",
+        shuffle_parts=False,
+        filter_n_ids=filter_n_ids,
+        class_code=class_code,
     )
     args.batch_size = 2 if args.overfit else args.batch_size
 
     # Defining selected contrastive pairs
-    pair_types = [PairType.NO_ROT_PAIR, PairType.PART_DROP]
+    pair_types = [PairType.NO_ROT_PAIR]
+    if not args.no_part_drop:
+        pair_types += [PairType.PART_DROP]
 
     num_tasks = misc.get_world_size()
     global_rank = misc.get_rank()
@@ -341,18 +392,24 @@ def main(args):
         print("Input args:\n", json.dumps(vars(args), indent=4, sort_keys=True))
 
     # Load initial model weights
-    base_model = dm.kl_d512_m512_l8_d24()
-    misc.load_model(args, base_model)
-    model = misc.transfer_weights(base_model, dm.kl_d512_m512_l8_d24_pq())
-    model.to(device)
-
-    model_without_ddp = model
+    model = dm.__dict__[args.model_name](
+        layer_depth=args.layer_depth,
+        n_parts=args.n_parts,
+        part_latents_dim=args.part_latents_dim,
+    )
+    if args.transfer_weights:
+        base_model = dm.kl_d512_m512_l8_d24()
+        misc.load_model(args, base_model)
+        model = misc.transfer_weights(base_model, model)
+    else:
+        misc.load_model(args, model)
+    model_without_ddp = model.to(device)
 
     # Print param count in human readable format
     print("Model param count: ", misc.count_params(model))
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(
-            model, device_ids=[args.gpu], find_unused_parameters=False
+            model, device_ids=[args.gpu], find_unused_parameters=args.freeze_dm
         )
         model_without_ddp = model.module
 

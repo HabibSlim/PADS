@@ -22,7 +22,6 @@ class EDMLossPQDM:
         rnd_normal = torch.randn([x.shape[0], 1, 1], device=x.device)
         sigma = (rnd_normal * self.P_std + self.P_mean).exp()
         weight = (sigma**2 + self.sigma_data**2) / (sigma * self.sigma_data) ** 2
-
         n = torch.randn_like(x) * sigma
 
         samples = (x + n, part_bbs, part_labels, batch_mask)

@@ -23,6 +23,7 @@ import wandb
 from torch import inf
 from functools import wraps
 from torch_cluster import fps
+import matplotlib.pyplot as plt
 
 
 """
@@ -845,3 +846,194 @@ def get_bb_vecs(bb_prim):
     assert vecs.shape[0] == 3
 
     return centroid, vecs
+
+
+def generate_colormap_colors(num_colors, colormap_name="viridis", alpha=1.0):
+    """
+    Generate a list of colors from a matplotlib colormap.
+
+    Args:
+    num_colors (int): Number of colors to generate.
+    colormap_name (str): Name of the matplotlib colormap (default: 'viridis').
+    alpha (float): Alpha value for the colors, between 0 and 1 (default: 1.0).
+
+    Returns:
+    list: List of [R, G, B, A] color tuples, with values between 0 and 1.
+    """
+    cmap = plt.get_cmap(colormap_name)
+    colors = [cmap(i / (num_colors - 1)) for i in range(num_colors)]
+
+    # Convert to the format [R, G, B, A] with values between 0 and 1
+    return [(r, g, b, alpha) for r, g, b, _ in colors]
+
+
+def obb_to_corners(box_array):
+    """
+    Convert an oriented bounding box (OBB) to its 8 corners.
+
+    Args:
+    box_array: Array containing center, right, up, and forward vectors of the OBB.
+
+    Returns:
+    numpy.ndarray: 8x3 array of corner coordinates.
+    """
+    center, right, up, forward = [np.array(v) for v in box_array[:4]]
+    corners = np.array(
+        [
+            [-1, -1, -1],
+            [1, -1, -1],
+            [1, 1, -1],
+            [-1, 1, -1],
+            [-1, -1, 1],
+            [1, -1, 1],
+            [1, 1, 1],
+            [-1, 1, 1],
+        ]
+    )
+    transform = np.column_stack((right, up, forward))
+    return np.dot(corners, transform.T) + center
+
+
+def create_corner_spheres(corners, radius=0.01):
+    """
+    Create sphere primitives for each corner of a bounding box.
+
+    Args:
+    corners: Array of corner coordinates.
+    radius: Radius of the spheres (default: 0.01).
+
+    Returns:
+    list: List of trimesh.primitives.Sphere objects.
+    """
+    return [
+        trimesh.primitives.Sphere(radius=radius).apply_translation(corner)
+        for corner in corners
+    ]
+
+
+def create_corner_connections(corners, radius=0.005):
+    """
+    Create lines connecting the corners of a bounding box.
+
+    Args:
+    corners: Array of 8 corner coordinates.
+
+    Returns:
+    trimesh.Path3D: Path object representing the connected corners.
+    """
+    # Define the connections between corners
+    connections = [
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 0),  # Bottom face
+        (4, 5),
+        (5, 6),
+        (6, 7),
+        (7, 4),  # Top face
+        (0, 4),
+        (1, 5),
+        (2, 6),
+        (3, 7),  # Vertical edges
+        (0, 2),
+        (1, 3),
+        (4, 6),
+        (5, 7),  # Diagonal edges
+    ]
+
+    cylinders = []
+    for start, end in connections:
+        vector = corners[end] - corners[start]
+        length = np.linalg.norm(vector)
+        direction = vector / length
+
+        # Create a cylinder
+        cylinder = trimesh.creation.cylinder(radius=radius, height=length)
+
+        # Rotate and translate the cylinder
+        rotation = trimesh.geometry.align_vectors([0, 0, 1], direction)
+        cylinder.apply_transform(rotation)
+        cylinder.apply_translation(corners[start] + vector / 2)
+
+        cylinders.append(cylinder)
+
+    # Combine all cylinders into a single mesh
+    return trimesh.util.concatenate(cylinders)
+
+
+def create_bounding_box_geometries(
+    bounding_boxes, box_type="spheres", line_radius=0.005
+):
+    """
+    Create geometries for multiple bounding boxes.
+
+    Args:
+    bounding_boxes: Array of bounding box parameters.
+    box_type: Type of bounding box representation ('spheres' or 'lines').
+    line_radius: Radius of the cylinders when box_type is 'lines' (default: 0.005).
+
+    Returns:
+    list: List of trimesh objects representing the bounding boxes.
+    """
+    geometries = []
+    for box in bounding_boxes:
+        if np.all(box == 0):
+            continue
+        corners = obb_to_corners(box)
+        if box_type == "spheres":
+            geometries.append(trimesh.util.concatenate(create_corner_spheres(corners)))
+        elif box_type == "lines":
+            geometries.append(create_corner_connections(corners, radius=line_radius))
+    return geometries
+
+
+def visualize_bounding_boxes(
+    mesh,
+    bounding_boxes,
+    box_type="spheres",
+    line_radius=0.005,
+    colormap="viridis",
+    alpha=1.0,
+):
+    """
+    Create a single mesh combining the main mesh and its bounding boxes.
+
+    Args:
+    mesh: The main mesh to be visualized.
+    bounding_boxes: Array of bounding box parameters.
+    box_type: Type of bounding box representation ('spheres' or 'lines').
+    line_radius: Radius of the cylinders when box_type is 'lines' (default: 0.005).
+    colormap: Name of the matplotlib colormap to use (default: 'viridis').
+    alpha: Alpha value for the bounding box colors (default: 1.0).
+
+    Returns:
+    trimesh.Trimesh: A single mesh combining the main mesh and bounding boxes.
+    """
+    bb_geometries = create_bounding_box_geometries(
+        bounding_boxes, box_type, line_radius
+    )
+
+    # Set the main mesh color
+    mesh.visual.face_colors = [
+        255,
+        255,
+        255,
+        int(100 * alpha),
+    ]  # Light gray, semi-transparent
+
+    # Generate colors from the specified colormap
+    colors = generate_colormap_colors(
+        len(bb_geometries), colormap_name=colormap, alpha=alpha
+    )
+
+    # Color the bounding box geometries
+    for bb_geom, color in zip(bb_geometries, colors):
+        if isinstance(bb_geom, trimesh.Trimesh):
+            bb_geom.visual.face_colors = np.array(color) * 255  # Convert to 0-255 range
+        elif isinstance(bb_geom, trimesh.Path3D):
+            bb_geom.colors = np.tile(np.array(color) * 255, (len(bb_geom.entities), 1))
+
+    # Combine all geometries into a single mesh
+    combined_mesh = trimesh.util.concatenate([mesh] + bb_geometries)
+
+    return combined_mesh

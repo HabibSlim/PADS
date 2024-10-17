@@ -280,10 +280,13 @@ class StackedRandomGenerator:
         )
 
 
-class EDMPartQueries(torch.nn.Module):
+class EDMBase(torch.nn.Module):
+    """
+    Base class for the Latent Diffusion Model.
+    """
+
     def __init__(
         self,
-        part_queries_encoder,
         n_latents=512,
         channels=8,
         use_fp16=False,
@@ -296,7 +299,6 @@ class EDMPartQueries(torch.nn.Module):
         out_channels=None,
     ):
         super().__init__()
-        self.pqe = part_queries_encoder
         self.n_latents = n_latents
         self.channels = channels
         self.use_fp16 = use_fp16
@@ -327,6 +329,67 @@ class EDMPartQueries(torch.nn.Module):
 
         return D_x
 
+    def round_sigma(self, sigma):
+        return torch.as_tensor(sigma)
+
+    @torch.no_grad()
+    def sample(self, cond, latents=None, batch_seeds=None, num_steps=18, start_step=0):
+        B, device = cond.shape[0], cond.device
+
+        if latents is None:
+            latents = torch.zeros([B, self.n_latents, self.channels], device=device)
+
+        # Initialize the random generator
+        if batch_seeds is None:
+            batch_seeds = torch.arange(B)
+        randn_like = StackedRandomGenerator(device, batch_seeds).randn_like
+
+        return smp.edm_sampler(
+            net=self,
+            latents=latents,
+            cond=cond,
+            randn_like=randn_like,
+            num_steps=num_steps,
+            start_step=start_step,
+        )
+
+    def freeze_dm(self):
+        """
+        Freezes the latent array transformer by setting requires_grad to False for all parameters.
+        """
+        for param in self.model.parameters():
+            param.requires_grad = False
+
+
+class EDMPartQueries(EDMBase):
+    def __init__(
+        self,
+        part_queries_encoder,
+        n_latents=512,
+        channels=8,
+        use_fp16=False,
+        sigma_min=0,
+        sigma_max=float("inf"),
+        sigma_data=1,
+        n_heads=8,
+        d_head=64,
+        depth=12,
+        out_channels=None,
+    ):
+        super().__init__(
+            n_latents,
+            channels,
+            use_fp16,
+            sigma_min,
+            sigma_max,
+            sigma_data,
+            n_heads,
+            d_head,
+            depth,
+            out_channels,
+        )
+        self.pqe = part_queries_encoder
+
     def forward(self, samples, sigma):
         # Unpack the data
         x, part_bbs, part_labels, batch_mask = samples
@@ -340,53 +403,8 @@ class EDMPartQueries(torch.nn.Module):
 
         return self.edm_forward(x=x, sigma=sigma, cond=cond), part_queries
 
-    def round_sigma(self, sigma):
-        return torch.as_tensor(sigma)
 
-    @torch.no_grad()
-    def sample(self, cond, batch_seeds=None, num_steps=18):
-        if cond is not None:
-            batch_size, device = cond.shape[0], cond.device
-            if batch_seeds is None:
-                batch_seeds = torch.arange(batch_size)
-        else:
-            device = batch_seeds.device
-            batch_size = batch_seeds.shape[0]
-
-        rnd = StackedRandomGenerator(device, batch_seeds)
-        latents = rnd.randn([batch_size, self.n_latents, self.channels], device=device)
-
-        return smp.edm_sampler_cond(
-            net=self,
-            latents=latents,
-            cond=cond,
-            randn_like=rnd.randn_like,
-            num_steps=num_steps,
-        )
-
-    @torch.no_grad()
-    def sample_from_latents(self, cond, batch_seeds=None, num_steps=18):
-        if cond is not None:
-            batch_size, device = cond.shape[0], cond.device
-            if batch_seeds is None:
-                batch_seeds = torch.arange(batch_size)
-        else:
-            device = batch_seeds.device
-            batch_size = batch_seeds.shape[0]
-
-        rnd = StackedRandomGenerator(device, batch_seeds)
-        latents = rnd.randn([batch_size, self.n_latents, self.channels], device=device)
-
-        return smp.edm_sampler_cond(
-            net=self,
-            latents=latents,
-            cond=cond,
-            randn_like=rnd.randn_like,
-            num_steps=num_steps,
-        )
-
-
-class EDMPrecond(torch.nn.Module):
+class EDMPrecond(EDMBase):
     def __init__(
         self,
         n_latents=512,
@@ -401,359 +419,37 @@ class EDMPrecond(torch.nn.Module):
         out_channels=None,
         make_embeds=False,
     ):
-        super().__init__()
-        self.n_latents = n_latents
-        self.channels = channels
-        self.use_fp16 = use_fp16
-        self.sigma_min = sigma_min
-        self.sigma_max = sigma_max
-        self.sigma_data = sigma_data
-        self.out_channels = channels if out_channels is None else out_channels
-
-        self.model = LatentArrayTransformer(
-            in_channels=channels,
-            t_channels=256,
-            n_heads=n_heads,
-            d_head=d_head,
-            depth=depth,
-            out_channels=self.out_channels,
+        super().__init__(
+            n_latents,
+            channels,
+            use_fp16,
+            sigma_min,
+            sigma_max,
+            sigma_data,
+            n_heads,
+            d_head,
+            depth,
+            out_channels,
         )
-
+        self.make_embeds = make_embeds
         if make_embeds:
             self.category_emb = nn.Embedding(55, n_heads * d_head)
-            self.make_embeds = True
 
     def emb_category(self, class_labels):
         return self.category_emb(class_labels).unsqueeze(1)
 
-    def forward(self, x, sigma, cond_emb=None, force_fp32=False, **model_kwargs):
+    def forward(self, x, sigma, cond=None, force_fp32=False, **model_kwargs):
         x = x.to(torch.float32)
         sigma = sigma.to(torch.float32).reshape(-1, 1, 1)
-        dtype = (
-            torch.float16
-            if (self.use_fp16 and not force_fp32 and x.device.type == "cuda")
-            else torch.float32
-        )
         if self.make_embeds:
-            cond_emb = self.category_emb(cond_emb).unsqueeze(1)
-        c_skip = self.sigma_data**2 / (sigma**2 + self.sigma_data**2)
-        c_out = sigma * self.sigma_data / (sigma**2 + self.sigma_data**2).sqrt()
-        c_in = 1 / (self.sigma_data**2 + sigma**2).sqrt()
-        c_noise = sigma.log() / 4
+            cond = self.category_emb(cond).unsqueeze(1)
 
-        F_x = self.model(
-            (c_in * x).to(dtype), c_noise.flatten(), cond=cond_emb, **model_kwargs
-        )
-        assert F_x.dtype == dtype
-        D_x = c_skip * x + c_out * F_x.to(torch.float32)
-        return D_x
-
-    def round_sigma(self, sigma):
-        return torch.as_tensor(sigma)
+        return self.edm_forward(x=x, sigma=sigma, cond=cond)
 
     @torch.no_grad()
-    def sample(self, cond, batch_seeds=None, num_steps=18):
-        if cond is not None:
-            batch_size, device = *cond.shape, cond.device
-            if batch_seeds is None:
-                batch_seeds = torch.arange(batch_size)
-        else:
-            device = batch_seeds.device
-            batch_size = batch_seeds.shape[0]
-
-        rnd = StackedRandomGenerator(device, batch_seeds)
-        latents = rnd.randn([batch_size, self.n_latents, self.channels], device=device)
-
-        return smp.edm_sampler(
-            self, latents, cond, randn_like=rnd.randn_like, num_steps=num_steps
-        )
-
-
-class EDMConcatPrecond(torch.nn.Module):
-    def __init__(
-        self,
-        n_latents=512,
-        channels=8,
-        use_fp16=False,
-        sigma_min=0,
-        sigma_max=float("inf"),
-        sigma_data=1,
-        n_heads=8,
-        d_head=64,
-        depth=12,
-        out_channels=None,
-    ):
-        super().__init__()
-        self.n_latents = n_latents
-        self.channels = channels
-        self.use_fp16 = use_fp16
-        self.sigma_min = sigma_min
-        self.sigma_max = sigma_max
-        self.sigma_data = sigma_data
-        self.out_channels = channels if out_channels is None else out_channels
-
-        self.model = LatentArrayTransformer(
-            in_channels=channels,
-            t_channels=256,
-            n_heads=n_heads,
-            d_head=d_head,
-            depth=depth,
-            out_channels=self.out_channels,
-        )
-
-    def forward(self, x_a, x_b, sigma, cond_emb=None, force_fp32=False, **model_kwargs):
-        x_b = x_b.to(torch.float32)
-        x_a = x_a.to(torch.float32)
-        sigma = sigma.to(torch.float32).reshape(-1, 1, 1)
-        dtype = (
-            torch.float16
-            if (self.use_fp16 and not force_fp32 and x_b.device.type == "cuda")
-            else torch.float32
-        )
-
-        c_skip = self.sigma_data**2 / (sigma**2 + self.sigma_data**2)
-        c_out = sigma * self.sigma_data / (sigma**2 + self.sigma_data**2).sqrt()
-        c_in = 1 / (self.sigma_data**2 + sigma**2).sqrt()
-        c_noise = sigma.log() / 4
-
-        x = torch.cat([x_b, x_a], dim=2)
-        F_x = self.model(
-            (c_in * x).to(dtype), c_noise.flatten(), cond=cond_emb, **model_kwargs
-        )
-        assert F_x.dtype == dtype
-        D_x_b = c_skip * x_b + c_out * F_x.to(torch.float32)
-        return D_x_b
-
-    def round_sigma(self, sigma):
-        return torch.as_tensor(sigma)
-
-
-class EDMTextCond(torch.nn.Module):
-    def __init__(
-        self,
-        n_latents=512,
-        channels=8,
-        use_fp16=False,
-        sigma_min=0,
-        sigma_max=float("inf"),
-        sigma_data=1,
-        n_heads=8,
-        d_head=64,
-        depth=12,
-        use_linear_proj=False,
-    ):
-        super().__init__()
-        self.edm_model = EDMConcatPrecond(
-            n_latents=n_latents,
-            channels=channels * 2,
-            use_fp16=use_fp16,
-            sigma_min=sigma_min,
-            sigma_max=sigma_max,
-            sigma_data=sigma_data,
-            n_heads=n_heads,
-            d_head=d_head,
-            depth=depth,
-            out_channels=channels,
-        )
-        self.use_linear_proj = use_linear_proj
-        self.sigma_min = sigma_min
-        self.sigma_max = sigma_max
-        if use_linear_proj:
-            self.linear_proj = nn.Linear(768, n_latents)
-
-    def proj_text(self, text_embeds):
-        if self.use_linear_proj:
-            text_embeds = self.linear_proj(text_embeds)
-        text_embeds = text_embeds.unsqueeze(1)
-        return text_embeds
-
-    def forward(self, x_a, x_b, embeds_ab, sigma):
-        embeds_ab = self.proj_text(embeds_ab)
-        x = self.edm_model(x_a=x_a, x_b=x_b, sigma=sigma, cond_emb=embeds_ab)
-        return x
-
-    def round_sigma(self, sigma):
-        return self.edm_model.round_sigma(sigma)
-
-    @torch.inference_mode()
-    def sample(self, x_a, embeds_ab, batch_seeds=None, sampling_params=None):
-        batch_size, device = x_a.shape[0], embeds_ab.device
-        if batch_seeds is None:
-            batch_seeds = torch.arange(batch_size)
-        rnd = StackedRandomGenerator(device, batch_seeds)
-        x_b = rnd.randn(
-            [batch_size, self.edm_model.n_latents, self.edm_model.channels // 2],
-            device=device,
-        )
-
-        return smp.edm_sampler_text(
-            self.edm_model,
-            x_a=x_a,
-            x_b=x_b,
-            embeds_ab=self.proj_text(embeds_ab),
-            randn_like=rnd.randn_like,
-            **sampling_params,
-        )
-
-
-class EDMConcatAll(torch.nn.Module):
-    def __init__(
-        self,
-        n_latents=512,
-        channels=8,
-        use_fp16=False,
-        sigma_min=0,
-        sigma_max=float("inf"),
-        sigma_data=1,
-        n_heads=8,
-        d_head=64,
-        depth=12,
-        out_channels=None,
-        fixed_class=18,
-    ):
-        super().__init__()
-        self.n_latents = n_latents
-        self.channels = channels
-        self.use_fp16 = use_fp16
-        self.sigma_min = sigma_min
-        self.sigma_max = sigma_max
-        self.sigma_data = sigma_data
-        self.out_channels = channels if out_channels is None else out_channels
-
-        # Fix condition for the input class
-        self.fixed_cond = torch.Tensor([fixed_class])
-        self.fixed_cond = self.fixed_cond.to(torch.int64)
-        self.fixed_cond.requires_grad = False
-
-        self.model = LatentArrayTransformer(
-            in_channels=channels,
-            t_channels=256,
-            n_heads=n_heads,
-            d_head=d_head,
-            depth=depth,
-            out_channels=self.out_channels,
-            deep_proj=False,
-        )
-
-        self.category_emb = nn.Embedding(55, n_heads * d_head)
-
-    def forward(self, x_a, x_b, sigma, cond_emb, force_fp32=False, **model_kwargs):
-        self.fixed_cond = self.fixed_cond.to(x_a.device)
-
-        x_b = x_b.to(torch.float32)
-        x_a = x_a.to(torch.float32)
-        sigma = sigma.to(torch.float32).reshape(-1, 1, 1)
-        dtype = (
-            torch.float16
-            if (self.use_fp16 and not force_fp32 and x_b.device.type == "cuda")
-            else torch.float32
-        )
-
-        c_skip = self.sigma_data**2 / (sigma**2 + self.sigma_data**2)
-        c_out = sigma * self.sigma_data / (sigma**2 + self.sigma_data**2).sqrt()
-        c_in = 1 / (self.sigma_data**2 + sigma**2).sqrt()
-        c_noise = sigma.log() / 4
-
-        cond_emb = cond_emb.permute(0, 2, 1)
-        cond_emb = cond_emb.repeat(1, 1, x_b.shape[2])
-        x = torch.cat([x_b, x_a, cond_emb], dim=2)
-        class_cond = self.category_emb(self.fixed_cond).unsqueeze(1)
-        class_cond = class_cond.repeat(x.shape[0], 1, 1)
-
-        F_x = self.model(
-            (c_in * x).to(dtype),
-            c_noise.flatten(),
-            cond=class_cond,
-            **model_kwargs,
-        )
-        assert F_x.dtype == dtype
-        D_x_b = c_skip * x_b + c_out * F_x.to(torch.float32)
-        return D_x_b
-
-    def round_sigma(self, sigma):
-        return torch.as_tensor(sigma)
-
-
-class EDMTextCondNoCA(torch.nn.Module):
-    def __init__(
-        self,
-        n_latents=512,
-        channels=8,
-        use_fp16=False,
-        sigma_min=0,
-        sigma_max=float("inf"),
-        sigma_data=1,
-        n_heads=8,
-        d_head=64,
-        depth=12,
-        use_linear_proj=False,
-        fixed_class=18,
-        use_deep_proj=False,
-    ):
-        super().__init__()
-        self.edm_model = EDMConcatAll(
-            n_latents=n_latents,
-            channels=channels * 3,
-            use_fp16=use_fp16,
-            sigma_min=sigma_min,
-            sigma_max=sigma_max,
-            sigma_data=sigma_data,
-            n_heads=n_heads,
-            d_head=d_head,
-            depth=depth,
-            out_channels=channels,
-            fixed_class=fixed_class,
-        )
-        self.use_linear_proj = use_linear_proj
-        self.use_deep_proj = use_deep_proj
-        self.sigma_min = sigma_min
-        self.sigma_max = sigma_max
-
-        if use_linear_proj:
-            if use_deep_proj:
-                self.linear_proj = nn.Sequential(
-                    nn.Linear(768, 768),
-                    nn.GELU(),
-                    nn.Linear(768, n_latents),
-                    nn.GELU(),
-                    nn.Linear(n_latents, n_latents),
-                )
-            else:
-                self.linear_proj = nn.Linear(768, n_latents)
-
-    def proj_text(self, text_embeds):
-        if self.use_linear_proj:
-            text_embeds = self.linear_proj(text_embeds)
-        text_embeds = text_embeds.unsqueeze(1)
-        return text_embeds
-
-    def forward(self, x_a, x_b, embeds_ab, sigma):
-        embeds_ab = self.proj_text(embeds_ab)
-        x = self.edm_model(x_a=x_a, x_b=x_b, sigma=sigma, cond_emb=embeds_ab)
-        return x
-
-    def round_sigma(self, sigma):
-        return self.edm_model.round_sigma(sigma)
-
-    @torch.inference_mode()
-    def sample(self, x_a, embeds_ab, batch_seeds=None, sampling_params=None):
-        batch_size, device = x_a.shape[0], embeds_ab.device
-        if batch_seeds is None:
-            batch_seeds = torch.arange(batch_size)
-        rnd = StackedRandomGenerator(device, batch_seeds)
-        x_b = rnd.randn(
-            [batch_size, self.edm_model.n_latents, self.edm_model.channels // 3],
-            device=device,
-        )
-
-        return smp.edm_sampler_text(
-            self.edm_model,
-            x_a=x_a,
-            x_b=x_b,
-            embeds_ab=self.proj_text(embeds_ab),
-            randn_like=rnd.randn_like,
-            **sampling_params,
-        )
+    def sample(self, cond, latents=None, batch_seeds=None, num_steps=18, start_step=0):
+        cond = self.category_emb(cond).unsqueeze(1)
+        return super().sample(cond, latents, batch_seeds, num_steps, start_step)
 
 
 def kl_d512_m512_l8_d24():
@@ -761,21 +457,23 @@ def kl_d512_m512_l8_d24():
     return model
 
 
-def kl_d512_m512_l8_d24_pq():
-    from models.part_queries import PartQueriesModel, PartQueriesEncoder
+def kl_d512_m512_l8_d24_pq(
+    layer_depth, n_parts=24, part_latents_dim=512, single_learnable_query=False
+):
+    from models.part_queries import PQM, PartQueriesEncoder
 
-    part_latents_dim = 512
-    pqm = PartQueriesModel(
+    pqm = PQM(
         dim=512,
         latent_dim=part_latents_dim,
         heads=8,
         dim_head=64,
-        depth=4,
+        depth=layer_depth,
+        single_learnable_query=single_learnable_query,
     )
     pqe = PartQueriesEncoder(
         pqm=pqm,
         dim=part_latents_dim,
-        input_length=24,
+        input_length=n_parts,
         output_length=8,
     )
     model = EDMPartQueries(
@@ -784,55 +482,23 @@ def kl_d512_m512_l8_d24_pq():
     return model
 
 
-def kl_d512_m512_l8_edit(use_linear_proj):
-    model = EDMTextCond(n_latents=512, channels=8, use_linear_proj=use_linear_proj)
-    return model
+def kl_d512_m512_l8_d24_pq_shallow(layer_depth=None, n_parts=24, part_latents_dim=512):
+    from models.part_queries import PQMShallow, PartQueriesEncoder
 
-
-def kl_d512_m512_l16_edit(use_linear_proj):
-    model = EDMTextCond(n_latents=512, channels=16, use_linear_proj=use_linear_proj)
-    return model
-
-
-def kl_d512_m512_l32_edit(use_linear_proj):
-    model = EDMTextCond(n_latents=512, channels=32, use_linear_proj=use_linear_proj)
-    return model
-
-
-def kl_d512_m512_l4_d24_edit(use_linear_proj):
-    model = EDMTextCond(
-        n_latents=512, channels=4, depth=24, use_linear_proj=use_linear_proj
+    pqm = PQMShallow(
+        dim=512,
+        latent_dim=part_latents_dim,
+        heads=8,
+        dim_head=64,
+        use_attention_masking=False,
     )
-    return model
-
-
-def kl_d512_m512_l8_d24_edit(use_linear_proj):
-    model = EDMTextCond(
-        n_latents=512, channels=8, depth=24, use_linear_proj=use_linear_proj
+    pqe = PartQueriesEncoder(
+        pqm=pqm,
+        dim=part_latents_dim,
+        input_length=n_parts,
+        output_length=8,
     )
-    return model
-
-
-def kl_d512_m512_l32_d24_edit(use_linear_proj):
-    model = EDMTextCond(
-        n_latents=512, channels=32, depth=24, use_linear_proj=use_linear_proj
-    )
-    return model
-
-
-def kl_d512_m512_l8_d24_no_ca_edit(use_linear_proj):
-    model = EDMTextCondNoCA(
-        n_latents=512, channels=8, depth=24, use_linear_proj=use_linear_proj
-    )
-    return model
-
-
-def kl_d512_m512_l8_d24_no_ca_edit__deep_proj(use_linear_proj):
-    model = EDMTextCondNoCA(
-        n_latents=512,
-        channels=8,
-        depth=24,
-        use_linear_proj=use_linear_proj,
-        use_deep_proj=True,
+    model = EDMPartQueries(
+        part_queries_encoder=pqe, n_latents=512, channels=8, depth=24
     )
     return model

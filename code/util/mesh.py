@@ -162,6 +162,13 @@ class CUDAMesh:
 
         return self, translation_mat
 
+    def to(self, device):
+        """
+        Move the mesh to the given device.
+        """
+        self.kaolin_mesh = self.kaolin_mesh.to(device)
+        return self
+
     @property
     def face_distribution(self):
         """

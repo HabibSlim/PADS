@@ -86,6 +86,10 @@ def train_one_epoch(
     Train the model for one epoch.
     """
     model.train(True)
+    # Disable training for the LatentArrayTransformer
+    if args.freeze_dm:
+        model.module.freeze_dm()
+
     metric_logger = misc.MetricLogger(delimiter="  ")
     header = "Epoch: [{}]".format(epoch)
 

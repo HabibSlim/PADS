@@ -4,7 +4,7 @@ Generating a set of part-aware latents from a set of part bounding boxes and par
 
 import torch
 from torch import nn
-from datasets.metadata import COMPAT_FINE_PARTS
+from datasets.metadata import N_COMPAT_FINE_PARTS
 from models.modules import (
     Attention,
     StackedAttentionBlocks,
@@ -18,15 +18,22 @@ class PartEmbed(nn.Module):
     Part-aware embeddings for part labels and bounding boxes.
     """
 
-    def __init__(self, dim):
+    def __init__(
+        self,
+        dim,
+        max_parts=24,
+        single_learnable_query=False,
+    ):
         super().__init__()
 
         self.embed_dim = dim
+        self.max_parts = max_parts
+        self.single_learnable_query = single_learnable_query
 
         # Embedding layers
         self.centroid_embed = PointEmbed(dim=dim // 2)
         self.vector_embed = PointEmbed(dim=dim // 2)
-        self.part_label_embed = nn.Embedding(COMPAT_FINE_PARTS, dim // 2)
+        self.part_label_embed = nn.Embedding(N_COMPAT_FINE_PARTS, dim // 2)
 
         # Projections
         self.bb_embeds_proj = nn.Sequential(
@@ -34,8 +41,11 @@ class PartEmbed(nn.Module):
         )
         self.final_embeds_proj = nn.Linear(dim, dim)
 
-        # Learnable empty object query
-        self.empty_object_query = nn.Parameter(torch.randn(dim))
+        # Learnable empty object queries
+        if single_learnable_query:
+            self.empty_object_query = nn.Parameter(torch.randn(dim))
+        else:
+            self.empty_queries = nn.Parameter(torch.randn(max_parts, dim))
 
     def forward(self, part_bbs, part_labels, batch_mask):
         B, N, _, _ = part_bbs.shape
@@ -77,15 +87,25 @@ class PartEmbed(nn.Module):
         part_embeds = torch.cat([labels_embed, bb_embeds], dim=-1)
         part_embeds = self.final_embeds_proj(part_embeds)  # B x 24 x D
 
-        # Replace masked (empty) objects with the learnable empty object query
+        # Replace masked (empty) objects with the corresponding learnable empty object query
         empty_mask = ~batch_mask.bool()
-        part_embeds[empty_mask] = self.empty_object_query.expand(empty_mask.sum(), -1)
+        if self.single_learnable_query:
+            part_embeds[empty_mask] = self.empty_object_query.expand(
+                empty_mask.sum(), -1
+            )
+        else:
+            for i in range(self.max_parts):
+                part_embeds[:, i, :] = torch.where(
+                    empty_mask[:, i].unsqueeze(1),
+                    self.empty_queries[i].unsqueeze(0).expand(B, -1),
+                    part_embeds[:, i, :],
+                )
         # ================================================
 
         return part_embeds, labels_embed, bb_embeds
 
 
-class PartQueriesModel(nn.Module):
+class PQM(nn.Module):
     """
     Generating a set of part-aware latents
     from a set of part bounding boxes and part labels: "part queries".
@@ -102,6 +122,7 @@ class PartQueriesModel(nn.Module):
         depth=2,
         weight_tie_layers=False,
         use_attention_masking=True,
+        single_learnable_query=False,
     ):
         super().__init__()
 
@@ -110,7 +131,7 @@ class PartQueriesModel(nn.Module):
         self.use_attention_masking = use_attention_masking
 
         # Part Embeddings
-        self.part_embed = PartEmbed(dim)
+        self.part_embed = PartEmbed(dim, max_parts, single_learnable_query)
         self.embed_proj = nn.Sequential(
             nn.Linear(dim, dim),
             nn.ReLU(),
@@ -124,6 +145,13 @@ class PartQueriesModel(nn.Module):
 
         # Replace repeat with learnable projection
         self.latent_proj = nn.Sequential(
+            nn.Linear(dim, dim),
+            nn.ReLU(),
+            nn.Linear(dim, dim),
+        )
+
+        # Intermediate MLP layer
+        self.inter_mlp = nn.Sequential(
             nn.Linear(dim, dim),
             nn.ReLU(),
             nn.Linear(dim, dim),
@@ -165,7 +193,75 @@ class PartQueriesModel(nn.Module):
         # Encode part embeddings
         mask = batch_mask if self.use_attention_masking else None
         x = self.in_encode(part_embeds, context=latents_kv, mask=mask)  # B x 24 x 512
-        x = self.encoder_layers(x)  # B x 24 x 512
+        x = self.inter_mlp(x)  # B x 24 x 512
+        x = self.encoder_layers(x, context=latents_kv)  # B x 24 x 512
+        part_queries = self.compress_latents(x)  # B x 24 x 512
+        return part_queries, part_embeds
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
+
+class PQMShallow(nn.Module):
+    """
+    Generating a set of part-aware latents
+    from a set of part bounding boxes and part labels: "part queries".
+    """
+
+    def __init__(
+        self,
+        dim=512,
+        latent_dim=128,
+        max_parts=24,
+        heads=8,
+        in_heads=1,
+        dim_head=64,
+        use_attention_masking=True,
+    ):
+        super().__init__()
+
+        self.latent_dim = latent_dim
+        self.max_parts = max_parts
+        self.use_attention_masking = use_attention_masking
+
+        # Part Embeddings
+        self.part_embed = PartEmbed(dim, max_parts)
+        self.embed_proj = nn.Linear(dim, dim)
+
+        # Input Cross-Attention Block
+        self.in_encode = PreNorm(
+            dim, Attention(dim, dim, heads=in_heads, dim_head=dim), context_dim=dim
+        )
+
+        # Replace repeat with learnable projection
+        self.latent_proj = nn.Linear(dim, dim)
+
+        # Compress latents to latent dimension
+        self.compress_latents = nn.Linear(dim, latent_dim)
+
+    def forward(self, latents, part_bbs, part_labels, batch_mask):
+        """
+        :param latents:     B x 512 x 8
+        :param part_bbs:    B x 24 x 4 x 3
+        :param part_labels: B x 24
+        :param batch_mask:  B x 24
+        """
+        # Embed part labels and bounding boxes
+        part_embeds, labels_embed, bb_embeds = self.part_embed(
+            part_bbs, part_labels, batch_mask
+        )
+
+        # Apply learnable projection instead of repeat
+        latents_kv = latents.transpose(1, 2).repeat(1, 3, 1)  # B x 24 x 512
+        latents_kv = self.latent_proj(latents_kv)
+
+        # Concatenate part embeddings with latents
+        part_embeds = self.embed_proj(part_embeds)  # B x 24 x 512
+
+        # Encode part embeddings
+        mask = batch_mask if self.use_attention_masking else None
+        x = self.in_encode(part_embeds, context=latents_kv, mask=mask)  # B x 24 x 512
         part_queries = self.compress_latents(x)  # B x 24 x 512
         return part_queries, part_embeds
 

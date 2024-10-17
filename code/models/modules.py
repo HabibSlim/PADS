@@ -128,8 +128,8 @@ class AttentionBlock(nn.Module):
         )
         self.ff = PreNorm(dim, FeedForward(dim, drop_path_rate=drop_path_rate))
 
-    def forward(self, x):
-        x = self.attn(x) + x
+    def forward(self, x, context=None, mask=None):
+        x = self.attn(x, context=context, mask=mask) + x
         x = self.ff(x) + x
         return x
 
@@ -149,9 +149,9 @@ class StackedAttentionBlocks(nn.Module):
         if weight_tie_layers:
             self.layers = nn.ModuleList([self.layers[0]] * depth)
 
-    def forward(self, x):
+    def forward(self, x, context=None, mask=None):
         for layer in self.layers:
-            x = layer(x)
+            x = layer(x, context=context, mask=mask)
         return x
 
 

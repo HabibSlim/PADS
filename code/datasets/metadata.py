@@ -136,9 +136,6 @@ SHAPENET_NAME_TO_SYNSET_INDEX = {
     if SHAPENET_NAME_TO_SYNSET[name] in SHAPENET_CLASSES
 }
 
-COMPAT_COARSE_PARTS = 43
-COMPAT_FINE_PARTS = 275
-
 # 3DCoMPaT class codes
 COMPAT_CLASSES = [
     "airplane",
@@ -214,6 +211,12 @@ COMPAT_MATCHED_CLASSES = [
     "vase",
 ]
 COMPAT_NO_MATCH = ["bbq_grill", "bicycle", "candle_holder"]
+
+# Number of classes in ShapeNet and 3DCoMPaT
+N_COMPAT_COARSE_PARTS = 43
+N_COMPAT_FINE_PARTS = 275
+N_COMPAT_CLASSES = len(COMPAT_CLASSES)
+N_COMPAT_MATCHED_CLASSES = len(COMPAT_MATCHED_CLASSES)
 
 
 def int_to_hex(i):
