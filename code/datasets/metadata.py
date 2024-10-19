@@ -137,7 +137,7 @@ SHAPENET_NAME_TO_SYNSET_INDEX = {
 }
 
 # 3DCoMPaT class codes
-COMPAT_CLASSES = [
+COMPAT_CLASSES_L = [
     "airplane",
     "bag",
     "basket",
@@ -181,7 +181,7 @@ COMPAT_CLASSES = [
     "trolley",
     "vase",
 ]
-COMPAT_CLASSES = {c: i for i, c in enumerate(COMPAT_CLASSES)}
+COMPAT_CLASSES = {c: i for i, c in enumerate(COMPAT_CLASSES_L)}
 COMPAT_MATCHED_CLASSES = [
     "airplane",
     "bag",
@@ -231,6 +231,13 @@ def class_to_hex(class_name):
     Convert class name to hex.
     """
     return int_to_hex(COMPAT_CLASSES[class_name])
+
+
+def hex_to_class(hex_str):
+    """
+    Convert hex to class name.
+    """
+    return COMPAT_CLASSES_L[int(hex_str, 16)]
 
 
 def class_to_idx(class_name, dataset="compat"):

@@ -997,17 +997,6 @@ def visualize_bounding_boxes(
 ):
     """
     Create a single mesh combining the main mesh and its bounding boxes.
-
-    Args:
-    mesh: The main mesh to be visualized.
-    bounding_boxes: Array of bounding box parameters.
-    box_type: Type of bounding box representation ('spheres' or 'lines').
-    line_radius: Radius of the cylinders when box_type is 'lines' (default: 0.005).
-    colormap: Name of the matplotlib colormap to use (default: 'viridis').
-    alpha: Alpha value for the bounding box colors (default: 1.0).
-
-    Returns:
-    trimesh.Trimesh: A single mesh combining the main mesh and bounding boxes.
     """
     bb_geometries = create_bounding_box_geometries(
         bounding_boxes, box_type, line_radius
