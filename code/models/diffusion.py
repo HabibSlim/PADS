@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 import models.sampling as smp
+from util.misc import default
 
 
 def zero_module(module):
@@ -59,9 +60,7 @@ class CrossAttention(nn.Module):
         h = self.heads
         q = self.to_q(x)
 
-        if context is None:
-            context = x
-
+        context = default(context, x)
         k = self.to_k(context)
         v = self.to_v(context)
 
@@ -69,11 +68,81 @@ class CrossAttention(nn.Module):
 
         sim = torch.einsum("b i d, b j d -> b i j", q, k) * self.scale
 
-        # attention, what we cannot get enough of
         attn = sim.softmax(dim=-1)
-
         out = torch.einsum("b i j, b j d -> b i d", attn, v)
         out = rearrange(out, "(b h) n d -> b n (h d)", h=h)
+        return self.to_out(out)
+
+
+class MaskableCrossAttention(nn.Module):
+    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.0):
+        super().__init__()
+        inner_dim = dim_head * heads
+
+        if context_dim is None:
+            context_dim = query_dim
+
+        self.scale = dim_head**-0.5
+        self.heads = heads
+
+        self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
+        self.to_k = nn.Linear(context_dim, inner_dim, bias=False)
+        self.to_v = nn.Linear(context_dim, inner_dim, bias=False)
+
+        self.to_out = nn.Sequential(
+            nn.Linear(inner_dim, query_dim), nn.Dropout(dropout)
+        )
+
+    def forward(self, x, context=None, context_mask=None):
+        """
+        Args:
+            x: Input tensor of shape (B, N, D) where N is the query sequence length
+            context: Context tensor of shape (B, L, D) where L is the context sequence length
+            context_mask: Boolean mask of shape (B, L) where True means the value is masked
+
+        Returns:
+            Tensor of shape (B, N, D)
+
+        Where:
+            B: batch size
+            N: sequence length of query
+            L: sequence length of context
+            D: dimension of input features
+        """
+        h = self.heads
+        q = self.to_q(x)
+
+        context = default(context, x)
+        k = self.to_k(context)
+        v = self.to_v(context)
+
+        # where d = dim_head
+        q, k, v = map(lambda t: rearrange(t, "b n (h d) -> (b h) n d", h=h), (q, k, v))
+
+        # sim shape: (B*h, N, L)
+        sim = torch.einsum("b i d, b j d -> b i j", q, k) * self.scale
+
+        if context_mask is not None:
+            # Expand mask for the heads dimension
+            # context_mask shape: (B, L) -> (B, 1, L) -> (B*h, 1, L)
+            mask = context_mask.unsqueeze(1).expand(-1, 1, -1)
+            mask = mask.repeat_interleave(h, dim=0)
+
+            # Expand mask for the query dimension
+            # mask shape: (B*h, 1, L) -> (B*h, N, L)
+            mask = mask.expand(-1, x.size(1), -1)
+
+            # Create a mask of -inf where context_mask is True
+            mask_value = -torch.finfo(sim.dtype).max
+            sim = sim.masked_fill(mask, mask_value)
+
+        # attn shape: (B*h, N, L)
+        attn = sim.softmax(dim=-1)
+
+        # out shape: (B*h, N, d) -> (B, N, h*d)
+        out = torch.einsum("b i j, b j d -> b i d", attn, v)
+        out = rearrange(out, "(b h) n d -> b n (h d)", h=h)
+
         return self.to_out(out)
 
 
@@ -144,13 +213,14 @@ class BasicTransformerBlock(nn.Module):
         gated_ff=True,
         checkpoint=True,
         init_values=0,
+        maskable_ca=False,
     ):
         super().__init__()
         self.attn1 = CrossAttention(
             query_dim=dim, heads=n_heads, dim_head=d_head, dropout=dropout
         )  # is a self-attention
         self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff)
-        self.attn2 = CrossAttention(
+        self.attn2 = MaskableCrossAttention(
             query_dim=dim,
             context_dim=context_dim,
             heads=n_heads,
@@ -174,9 +244,12 @@ class BasicTransformerBlock(nn.Module):
             LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
         )
 
-    def forward(self, x, t, context=None):
+    def forward(self, x, t, context=None, context_mask=None):
         x = self.ls1(self.attn1(self.norm1(x, t))) + x
-        x = self.ls2(self.attn2(self.norm2(x, t), context=context)) + x
+        x = (
+            self.ls2(self.attn2(self.norm2(x, t), context=context, context_mask=None))
+            + x
+        )
         x = self.ls3(self.ff(self.norm3(x, t))) + x
         return x
 
@@ -238,14 +311,14 @@ class LatentArrayTransformer(nn.Module):
         self.map_layer0 = nn.Linear(in_features=t_channels, out_features=inner_dim)
         self.map_layer1 = nn.Linear(in_features=inner_dim, out_features=inner_dim)
 
-    def forward(self, x, t, cond=None):
+    def forward(self, x, t, cond=None, cond_mask=None):
         t_emb = self.map_noise(t)[:, None]
         t_emb = F.silu(self.map_layer0(t_emb))
         t_emb = F.silu(self.map_layer1(t_emb))
         x = self.proj_in(x)
 
         for block in self.transformer_blocks:
-            x = block(x, t_emb, context=cond)
+            x = block(x, t_emb, context=cond, context_mask=cond_mask)
 
         x = self.norm(x)
         x = self.proj_out(x)
@@ -317,14 +390,14 @@ class EDMBase(torch.nn.Module):
         )
         self.dtype = torch.float16 if use_fp16 else torch.float32
 
-    def edm_forward(self, x, sigma, cond):
+    def edm_forward(self, x, sigma, cond, cond_mask=None):
         c_skip = self.sigma_data**2 / (sigma**2 + self.sigma_data**2)
         c_out = sigma * self.sigma_data / (sigma**2 + self.sigma_data**2).sqrt()
         c_in = 1 / (self.sigma_data**2 + sigma**2).sqrt()
         c_noise = sigma.log() / 4
         c_noise = c_noise.to(self.dtype)
 
-        F_x = self.model((c_in * x).to(self.dtype), c_noise.flatten(), cond)
+        F_x = self.model((c_in * x).to(self.dtype), c_noise.flatten(), cond, cond_mask)
         D_x = c_skip * x + c_out * F_x.to(self.dtype)
 
         return D_x
@@ -359,6 +432,10 @@ class EDMBase(torch.nn.Module):
         """
         for param in self.model.parameters():
             param.requires_grad = False
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
 
 
 class EDMPartQueries(EDMBase):
@@ -399,9 +476,63 @@ class EDMPartQueries(EDMBase):
         sigma = sigma.to(self.dtype).reshape(-1, 1, 1)
 
         # Compute part queries condition
-        cond, part_queries = self.pqe(x, part_bbs, part_labels, batch_mask)
+        cond, part_embeds = self.pqe(x, part_bbs, part_labels, batch_mask)
 
-        return self.edm_forward(x=x, sigma=sigma, cond=cond), part_queries
+        return (
+            self.edm_forward(x=x, sigma=sigma, cond=cond, cond_mask=batch_mask),
+            part_embeds,
+        )
+
+
+class EDMPartAssets(EDMBase):
+    def __init__(
+        self,
+        part_queries_encoder,
+        n_latents=512,
+        channels=8,
+        use_fp16=False,
+        sigma_min=0,
+        sigma_max=float("inf"),
+        sigma_data=1,
+        n_heads=8,
+        d_head=64,
+        depth=12,
+        out_channels=None,
+    ):
+        super().__init__(
+            n_latents,
+            channels,
+            use_fp16,
+            sigma_min,
+            sigma_max,
+            sigma_data,
+            n_heads,
+            d_head,
+            depth,
+            out_channels,
+        )
+        self.pqe = part_queries_encoder
+
+    def forward(self, samples, sigma, num_samples=512):
+        # Unpack the data
+        x, part_bbs, part_labels, part_points, shape_cls, batch_mask = samples
+        x = x.to(self.dtype)
+        part_bbs = part_bbs.to(self.dtype)
+        sigma = sigma.to(self.dtype).reshape(-1, 1, 1)
+
+        # Compute part queries condition
+        cond, part_embeds = self.pqe(
+            part_bbs=part_bbs,
+            part_points=part_points,
+            batch_mask=batch_mask,
+            shape_cls=shape_cls,
+            num_samples=512,
+        )
+
+        return (
+            self.edm_forward(x=x, sigma=sigma, cond=cond, cond_mask=batch_mask),
+            part_embeds,
+        )
 
 
 class EDMPrecond(EDMBase):
@@ -458,47 +589,38 @@ def kl_d512_m512_l8_d24():
 
 
 def kl_d512_m512_l8_d24_pq(
-    layer_depth, n_parts=24, part_latents_dim=512, single_learnable_query=False
+    layer_depth=0, n_parts=24, part_latents_dim=512, single_learnable_query=False
 ):
-    from models.part_queries import PQM, PartQueriesEncoder
+    from models.part_queries import PQM
 
     pqm = PQM(
         dim=512,
-        latent_dim=part_latents_dim,
         heads=8,
         dim_head=64,
-        depth=layer_depth,
-        single_learnable_query=single_learnable_query,
-    )
-    pqe = PartQueriesEncoder(
-        pqm=pqm,
-        dim=part_latents_dim,
-        input_length=n_parts,
-        output_length=8,
     )
     model = EDMPartQueries(
-        part_queries_encoder=pqe, n_latents=512, channels=8, depth=24
+        part_queries_encoder=pqm, n_latents=512, channels=8, depth=24
     )
     return model
 
 
-def kl_d512_m512_l8_d24_pq_shallow(layer_depth=None, n_parts=24, part_latents_dim=512):
-    from models.part_queries import PQMShallow, PartQueriesEncoder
+def kl_d512_m512_l8_d24_passets(
+    layer_depth=0, n_parts=24, single_learnable_query=False
+):
+    from models.points.encoders import pointbert_g512_d12_compat
+    from models.part_assets import PartTokenizer
 
-    pqm = PQMShallow(
-        dim=512,
-        latent_dim=part_latents_dim,
-        heads=8,
-        dim_head=64,
-        use_attention_masking=False,
+    pc_encoder = pointbert_g512_d12_compat()
+    passets = PartTokenizer(
+        pc_encoder=pc_encoder,
+        bb_input_dim=12,
+        bb_hidden_dim=64,
+        bb_output_dim=32,
+        bb_mlp_depth=3,
+        visual_feature_dim=128,
+        out_dim=512,
     )
-    pqe = PartQueriesEncoder(
-        pqm=pqm,
-        dim=part_latents_dim,
-        input_length=n_parts,
-        output_length=8,
-    )
-    model = EDMPartQueries(
-        part_queries_encoder=pqe, n_latents=512, channels=8, depth=24
+    model = EDMPartAssets(
+        part_queries_encoder=passets, n_latents=512, channels=8, depth=24
     )
     return model

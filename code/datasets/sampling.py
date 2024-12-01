@@ -209,46 +209,62 @@ def combine_samplings(mesh, num_points, sampling_fns):
     """
     points, occs = [], []
 
-    # # Distribute the points evenly among the sampling functions
-    # points_per_fn = [num_points // len(sampling_fns)] * len(sampling_fns)
-    # points_per_fn[-1] += num_points - sum(points_per_fn)
-
     for k, sampling_fn in enumerate(sampling_fns):
         p, o = sampling_fn(mesh, num_points // len(sampling_fns), get_occ=True)
         o = o.to(p.device)
         points.append(p)
         occs.append(o)
     return torch.cat(points), torch.cat(occs)
-    # torch.cat(points, dim=1), torch.cat(occs)
 
 
-def normalize_pc(point_cloud):
+def normalize_pc(points, method="max"):
     """
-    Normalize the point cloud to be in the range [-1, 1] and centered at the origin.
+    Normalize a point cloud to [-1, 1] range with two methods:
+    - method="max": normalize using maximum extent across all axes (partial cube filling)
+    - method="per_axis": normalize each axis independently (full cube filling)
+    Both methods center the point cloud at the origin.
+
+    Args:
+        points: Point cloud as torch.Tensor or numpy.ndarray with shape [..., 3]
+        method: "max" or "per_axis"
+    Returns:
+        Normalized point cloud in same format as input
     """
-    assert point_cloud.dim() == 3
-    min_x, max_x = torch.min(point_cloud[:, :, 0]), torch.max(point_cloud[:, :, 0])
-    min_y, max_y = torch.min(point_cloud[:, :, 1]), torch.max(point_cloud[:, :, 1])
-    min_z, max_z = torch.min(point_cloud[:, :, 2]), torch.max(point_cloud[:, :, 2])
+    if isinstance(points, torch.Tensor):
+        mins = torch.min(points, dim=-2)[0]
+        maxs = torch.max(points, dim=-2)[0]
+        center = (mins + maxs) / 2
+        centered = points - center.unsqueeze(-2)
 
-    # Center the point cloud
-    center = torch.tensor(
-        [(min_x + max_x) / 2, (min_y + max_y) / 2, (min_z + max_z) / 2]
-    )
-    point_cloud = point_cloud - center.to(point_cloud.device)
+        extents = maxs - mins
+        if method == "max":
+            # Use maximum extent across all axes
+            scale = torch.max(extents)
+        elif method == "per_axis":
+            # Scale each axis independently
+            scale = extents.unsqueeze(-2)
+        else:
+            raise ValueError(f"Unknown method: {method}")
 
-    # Normalize the point cloud to bounding box [-1, 1]
-    dist = torch.max(
-        torch.tensor(
-            [
-                torch.max(point_cloud[:, :, 0]) - torch.min(point_cloud[:, :, 0]),
-                torch.max(point_cloud[:, :, 1]) - torch.min(point_cloud[:, :, 1]),
-                torch.max(point_cloud[:, :, 2]) - torch.min(point_cloud[:, :, 2]),
-            ]
-        )
-    )
-    point_cloud = point_cloud / dist
-    return point_cloud
+        return centered / scale
+
+    else:  # numpy array
+        mins = np.min(points, axis=-2)
+        maxs = np.max(points, axis=-2)
+        center = (mins + maxs) / 2
+        centered = points - center[..., np.newaxis, :]
+
+        extents = maxs - mins
+        if method == "max":
+            # Use maximum extent across all axes
+            scale = np.max(extents)
+        elif method == "per_axis":
+            # Scale each axis independently
+            scale = extents[..., np.newaxis, :]
+        else:
+            raise ValueError(f"Unknown method: {method}")
+
+        return centered / scale
 
 
 """

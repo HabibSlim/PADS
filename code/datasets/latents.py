@@ -4,11 +4,12 @@ Latents dataset.
 
 import json
 import os
+import random
+
 import numpy as np
 import torch
 import torch.nn.functional as F
-
-import random
+from datasets.sampling import normalize_pc
 from torch.utils.data import Dataset, BatchSampler, DataLoader
 from collections import defaultdict
 
@@ -35,10 +36,12 @@ class ShapeLatentDataset(Dataset):
         split=None,
         filter_n_ids=None,
         get_part_points=False,
+        normalize_part_points=False,
     ):
         exclude_types = set(exclude_types) if exclude_types else set()
         self.shuffle_parts = shuffle_parts
         self.get_part_points = get_part_points
+        self.normalize_part_points = normalize_part_points
 
         # Load file list
         file_list = "capped_list.json" if cap_parts else "full_list.json"
@@ -99,9 +102,14 @@ class ShapeLatentDataset(Dataset):
 
             # Extract model ID from the filename
             basename = os.path.basename(file_paths[0])
-            model_id = basename.split("_")[0:2][0] + basename.split("_")[0:2][1]
+            cls_code = basename.split("_")[0:2][0]
+            model_id = cls_code + basename.split("_")[0:2][1]
             model_id = int(model_id, 16)
-            self.file_tuples += [(*file_paths, model_id)]
+
+            # Convert hex to int
+            cls_label = int(cls_code, 16)
+
+            self.file_tuples += [(*file_paths, cls_label, model_id)]
 
         if filter_n_ids is not None:
             # Only keep the samples corresponding to N=filter_n_ids distinct model IDs
@@ -127,9 +135,9 @@ class ShapeLatentDataset(Dataset):
 
     def __getitem__(self, idx):
         # Unpack file paths
-        latent_f, bb_coords_f, bb_labels_f, part_points_f, model_id = self.file_tuples[
-            idx
-        ]
+        latent_f, bb_coords_f, bb_labels_f, part_points_f, cls_label, model_id = (
+            self.file_tuples[idx]
+        )
 
         # Loading latent and bounding box data
         latent = np.load(latent_f)
@@ -140,10 +148,18 @@ class ShapeLatentDataset(Dataset):
         latent_tensor = torch.from_numpy(latent).float()
         bb_coords_tensor = torch.from_numpy(bb_coords).float()
         bb_labels_tensor = torch.from_numpy(bb_labels).long()
+        cls_label_tensor = torch.tensor(cls_label).long()
 
         if self.get_part_points:
             part_points = np.load(part_points_f, allow_pickle=True)
             part_points_tensor = torch.from_numpy(part_points).float()
+            # Normalize each part point cloud
+            if self.normalize_part_points:
+                for k in range(part_points_tensor.shape[0]):
+                    part_points_tensor[k] = normalize_pc(
+                        part_points_tensor[k].unsqueeze(0),
+                        method="per_axis",
+                    ).squeeze()
 
         # Shuffle the order of parts if self.shuffle is True
         if self.shuffle_parts:
@@ -153,7 +169,8 @@ class ShapeLatentDataset(Dataset):
             shuffle_indices = torch.randperm(num_parts, generator=self.rng)
             bb_coords_tensor = bb_coords_tensor[shuffle_indices]
             bb_labels_tensor = bb_labels_tensor[shuffle_indices]
-            part_points_tensor = part_points_tensor[shuffle_indices]
+            if self.get_part_points:
+                part_points_tensor = part_points_tensor[shuffle_indices]
 
         # Pad bb coords and labels
         pad_size = self.PART_CAP - bb_coords_tensor.size(0)
@@ -161,8 +178,8 @@ class ShapeLatentDataset(Dataset):
         # Pad the tensors
         bb_coords_tensor = F.pad(bb_coords_tensor, (0, 0, 0, 0, 0, pad_size))
         bb_labels_tensor = F.pad(bb_labels_tensor, (0, pad_size), value=-1)
-        # if self.get_part_points:
-        #     part_points_tensor = F.pad(part_points_tensor, (0, 0, 0, pad_size))
+        if self.get_part_points:
+            part_points_tensor = F.pad(part_points_tensor, (0, 0, 0, 0, 0, pad_size))
 
         # Extract metadata from filename
         meta = os.path.basename(latent_f).split(".")[0]
@@ -173,6 +190,7 @@ class ShapeLatentDataset(Dataset):
                 bb_coords_tensor,
                 bb_labels_tensor,
                 part_points_tensor,
+                cls_label_tensor,
                 meta,
             )
         else:
@@ -180,6 +198,7 @@ class ShapeLatentDataset(Dataset):
                 latent_tensor,
                 bb_coords_tensor,
                 bb_labels_tensor,
+                cls_label_tensor,
                 meta,
             )
 
@@ -301,17 +320,18 @@ class DistributedPairedSampler(BatchSampler):
 
         # Group indices by ID and type
         id_to_indices = defaultdict(lambda: defaultdict(list))
-        for idx, (filename, _, _) in enumerate(file_list):
+        for idx, file_info in enumerate(file_list):
+            filename = file_info[0]
             parts = filename.split("_")
             id_part = "_".join(parts[:2])
-            file_type = "_".join(parts[2:-1])
-            id_to_indices[id_part][file_type].append(idx)
+            type_part = "_".join(parts[2:-1])
+            id_to_indices[id_part][type_part].append(idx)
 
         # Filter out IDs that don't have both required types
         valid_ids = [
             id_part
             for id_part, type_dict in id_to_indices.items()
-            if all(t in type_dict for t in pair_types)
+            if all(p_type in type_dict for p_type in pair_types)
         ]
 
         paired_indices = []

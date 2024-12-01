@@ -74,6 +74,7 @@ class ScaleInvariantLoss:
         """
         Call the loss function.
         """
+        mask = 1 - mask
         # Apply mask to both latents
         masked_latents_a = part_latents_a[mask]
         masked_latents_b = part_latents_b[mask]
@@ -128,6 +129,8 @@ class PartDropLoss:
         """
         Call the loss function.
         """
+        mask_a = ~mask_a
+        mask_b = ~mask_b
         permuts = self.find_permutation_padded(bb_a, bb_b, mask_a, mask_b)
         total_loss = 0.0
         inter = mask_a & mask_b

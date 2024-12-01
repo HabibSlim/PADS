@@ -34,7 +34,6 @@ class Group(nn.Module):
             xyz = data.contiguous()
         # fps the centers out
         center = p2u.fps(xyz, self.num_group)  # B G 3
-        print(center.shape)
         assert center.size(1) == self.num_group
         # knn to get the neighborhood
         _, idx = self.knn(xyz, center)  # B G M
@@ -478,14 +477,9 @@ class PointBERT(nn.Module):
         )
 
         # FC layers
-        feat_bottom = F.relu(self.bn1(self.conv1(f_level_0)))
-        x = self.drop1(feat_bottom)
-        x = self.conv2(x)
-        x = F.log_softmax(x, dim=1)
-        x = x.permute(0, 2, 1)
-
+        feat_bottom = F.relu(self.conv1(f_level_0))
         top_fts = feat_bottom.transpose(-1, -2).contiguous()
-        return x, top_fts
+        return top_fts
 
 
 def pointbert_g512_d12(num_classes, num_parts, shape_prior=False):

@@ -169,6 +169,12 @@ class CUDAMesh:
         self.kaolin_mesh = self.kaolin_mesh.to(device)
         return self
 
+    def cpu(self):
+        return self.to("cpu")
+
+    def gpu(self):
+        return self.to("gpu")
+
     @property
     def face_distribution(self):
         """
@@ -202,6 +208,9 @@ def decimate_mesh(mesh, factor):
     """
     Decimate the input mesh by the given factor using Fast Quadric Mesh Simplification.
     """
-    vertices, faces = mesh.trimesh_mesh.vertices, mesh.trimesh_mesh.faces
+    if isinstance(mesh, CUDAMesh):
+        vertices, faces = mesh.trimesh_mesh.vertices, mesh.trimesh_mesh.faces
+    else:
+        vertices, faces = mesh.vertices, mesh.faces
     vertices_out, faces_out = fast_simplification.simplify(vertices, faces, factor)
     return CUDAMesh(vertices_out, faces_out)

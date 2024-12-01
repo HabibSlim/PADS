@@ -235,18 +235,18 @@ def init_dataloaders(args):
 
     dataset_train = ShapeLatentDataset(
         args.data_path,
+        class_code=class_code,
         split="train",
         shuffle_parts=True,
         filter_n_ids=filter_n_ids,
-        class_code=class_code,
     )
 
     dataset_val = ShapeLatentDataset(
         args.data_path,
+        class_code=class_code,
         split="test",
         shuffle_parts=False,
         filter_n_ids=filter_n_ids,
-        class_code=class_code,
     )
     args.batch_size = 2 if args.overfit else args.batch_size
 
@@ -349,6 +349,7 @@ def train_model(
                 model=model,
                 model_without_ddp=model_without_ddp,
                 optimizer=optimizer,
+                loss_scaler=loss_scaler,
             )
 
         if (epoch % args.valid_step == 0 or epoch + 1 == args.epochs) or args.debug_run:
@@ -397,12 +398,13 @@ def main(args):
         n_parts=args.n_parts,
         part_latents_dim=args.part_latents_dim,
     )
-    if args.transfer_weights:
-        base_model = dm.kl_d512_m512_l8_d24()
-        misc.load_model(args, base_model)
-        model = misc.transfer_weights(base_model, model)
-    else:
-        misc.load_model(args, model)
+    if not args.resume_full_weights:
+        if args.transfer_weights:
+            base_model = dm.kl_d512_m512_l8_d24()
+            misc.load_model(args, base_model)
+            model = misc.transfer_weights(base_model, model)
+        else:
+            misc.load_model(args, model)
     model_without_ddp = model.to(device)
 
     # Print param count in human readable format
@@ -428,16 +430,38 @@ def main(args):
     )
 
     # Define optimizer, loss scaler, etc.
-    if args.schedule_free:
-        optimizer = AdamWScheduleFree(
-            model_without_ddp.parameters(), lr=args.lr, weight_decay=args.weight_decay
-        )
-    else:
-        optimizer = torch.optim.AdamW(
+    opt_fn = AdamWScheduleFree if args.schedule_free else torch.optim.AdamW
+    if args.resume_full_weights:
+        optimizer = opt_fn(
             model_without_ddp.parameters(),
-            lr=args.lr,
-            weight_decay=args.weight_decay,
         )
+        misc.load_optimizer(args, optimizer)
+    else:
+        if args.schedule_free:
+            optimizer = opt_fn(
+                model_without_ddp.parameters(),
+                lr=args.lr,
+                weight_decay=args.weight_decay,
+            )
+        else:
+            optimizer = opt_fn(
+                model_without_ddp.parameters(),
+                lr=args.lr,
+                weight_decay=args.weight_decay,
+            )
+
+    # Load the model from a checkpoint
+    if args.resume_full_weights:
+        if "layered" in args.model_name:
+            misc.load_model(
+                args=args,
+                model_without_ddp=model_without_ddp,
+            )
+        else:
+            misc.load_model(
+                args=args,
+                model_without_ddp=model_without_ddp,
+            )
 
     # Start a new wandb run to track this script
     if not args.eval and global_rank == 0:

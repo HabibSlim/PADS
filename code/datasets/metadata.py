@@ -210,7 +210,6 @@ COMPAT_MATCHED_CLASSES = [
     "trashcan",
     "vase",
 ]
-COMPAT_NO_MATCH = ["bbq_grill", "bicycle", "candle_holder"]
 
 # Number of classes in ShapeNet and 3DCoMPaT
 N_COMPAT_COARSE_PARTS = 43

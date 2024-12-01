@@ -43,11 +43,11 @@ def forward_pass(
     device = pqdm.device
 
     # Unpack the data tuple
-    pair_types, (l_a, bb_a, bb_l_a, _), (l_b, bb_b, bb_l_b, _) = data_tuple
+    pair_types, (l_a, bb_a, bb_l_a, _, _), (l_b, bb_b, bb_l_b, _, _) = data_tuple
 
     # Compute the mask from batch labels
-    mask_a = (bb_l_a != -1).to(device)  # B x 24
-    mask_b = (bb_l_b != -1).to(device)  # B x 24
+    mask_a = (bb_l_a == -1).to(device)  # B x 24
+    mask_b = (bb_l_b == -1).to(device)  # B x 24
 
     l_a, l_b = l_a.to(device), l_b.to(device)  # B x 8 x 512
     bb_a, bb_b = bb_a.to(device), bb_b.to(device)  # B x 24 x 4 x 3
@@ -58,13 +58,13 @@ def forward_pass(
     rec_loss_b, part_queries_b = rec_loss(pqdm, l_b, bb_b, bb_l_b, mask_b)
     rec_loss_value = (rec_loss_a + rec_loss_b) / 2.0
 
-    if pair_types == PairType.NO_ROT_PAIR:
-        inv_loss = scale_inv_loss(part_queries_a, part_queries_b, mask_a)
-    elif pair_types == PairType.PART_DROP:
-        inv_loss = part_drop_loss(
-            part_queries_a, part_queries_b, bb_a, bb_b, mask_a, mask_b
-        )
-    # inv_loss = torch.tensor(0.0)
+    # if pair_types == PairType.NO_ROT_PAIR:
+    #     inv_loss = scale_inv_loss(part_queries_a, part_queries_b, mask_a)
+    # elif pair_types == PairType.PART_DROP:
+    #     inv_loss = part_drop_loss(
+    #         part_queries_a, part_queries_b, bb_a, bb_b, mask_a, mask_b
+    #     )
+    inv_loss = torch.tensor(0.0).to(device)
 
     return {
         "rec_loss": rec_loss_value,

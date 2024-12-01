@@ -75,6 +75,10 @@ def query_latents(ae, latent, point_queries, batch_size=None, use_graph=False):
             dim=1,
         )
 
+        del point_queries
+        del latent
+        torch.cuda.empty_cache()
+
         return logits
 
 
@@ -101,6 +105,7 @@ def predict_occupancies(ae, latents, point_queries, n_queries):
     return pred_occs
 
 
+@torch.inference_mode()
 def decode_latents(ae, latent, grid_density=128, batch_size=None, smooth_volume=False):
     """
     Decode latents to a mesh using marching cubes.
@@ -108,20 +113,19 @@ def decode_latents(ae, latent, grid_density=128, batch_size=None, smooth_volume=
     B, N, D = latent.shape
     assert B == 1, "Batch size must be 1."
 
-    with torch.inference_mode():
-        logits = query_latents_grid(ae, latent, grid_density, batch_size)
-        volume = (
-            logits.view(grid_density + 1, grid_density + 1, grid_density + 1)
-            .permute(1, 0, 2)
-            .cpu()
-            .numpy()
-        )
-        if smooth_volume:
-            volume = mcubes.smooth(volume)
-        verts, faces = mcubes.marching_cubes(volume, 0)
-        gap = 2.0 / grid_density
-        verts *= gap
-        verts -= 1
+    logits = query_latents_grid(ae, latent, grid_density, batch_size)
+    volume = (
+        logits.view(grid_density + 1, grid_density + 1, grid_density + 1)
+        .permute(1, 0, 2)
+        .cpu()
+        .numpy()
+    )
+    if smooth_volume:
+        volume = mcubes.smooth(volume)
+    verts, faces = mcubes.marching_cubes(volume, 0)
+    gap = 2.0 / grid_density
+    verts *= gap
+    verts -= 1
     return CUDAMesh(verts, faces)
 
 

@@ -78,9 +78,7 @@ class Attention(nn.Module):
             mask = repeat(mask, "b j -> (b h) () j", h=h)
             sim.masked_fill_(~mask, max_neg_value)
 
-        # attention, what we cannot get enough of
         attn = sim.softmax(dim=-1)
-
         out = einsum("b i j, b j d -> b i d", attn, v)
         out = rearrange(out, "(b h) n d -> b n (h d)", h=h)
         return self.drop_path(self.to_out(out))

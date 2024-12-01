@@ -574,17 +574,20 @@ def load_model(args, model_without_ddp, optimizer=None, loss_scaler=None):
         checkpoint = torch.load(args.resume, map_location="cpu")
     model_without_ddp.load_state_dict(checkpoint["model"])
     print("Resume checkpoint %s" % args.resume)
-    if (
-        optimizer is not None
-        and "optimizer" in checkpoint
-        and "epoch" in checkpoint
-        and not (hasattr(args, "eval") and args.eval)
-    ):
-        optimizer.load_state_dict(checkpoint["optimizer"])
-        args.start_epoch = checkpoint["epoch"] + 1
-        if loss_scaler is not None and "scaler" in checkpoint:
-            loss_scaler.load_state_dict(checkpoint["scaler"])
-        print("With optim & sched!")
+    return model_without_ddp
+
+
+def load_optimizer(args, optimizer, loss_scaler=None):
+    checkpoint = torch.load(args.resume, map_location="cpu")
+    optimizer.load_state_dict(checkpoint["optimizer"])
+    print("Resume optimizer %s" % args.resume)
+    for param_group in optimizer.param_groups:
+        print("Loaded learning rate: %f" % param_group["lr"])
+
+    if loss_scaler is not None:
+        loss_scaler.load_state_dict(checkpoint["scaler"])
+    print("With optim & sched!")
+    return optimizer, loss_scaler
 
 
 def load_model_only(args, model_without_ddp):
@@ -861,7 +864,8 @@ def generate_colormap_colors(num_colors, colormap_name="viridis", alpha=1.0):
     list: List of [R, G, B, A] color tuples, with values between 0 and 1.
     """
     cmap = plt.get_cmap(colormap_name)
-    colors = [cmap(i / (num_colors - 1)) for i in range(num_colors)]
+    col_div = num_colors - 1 if num_colors > 1 else 1
+    colors = [cmap(i / col_div) for i in range(num_colors)]
 
     # Convert to the format [R, G, B, A] with values between 0 and 1
     return [(r, g, b, alpha) for r, g, b, _ in colors]
@@ -979,21 +983,23 @@ def create_bounding_box_geometries(
     for box in bounding_boxes:
         if np.all(box == 0):
             continue
-        corners = obb_to_corners(box)
+        if box.shape != (8, 3):
+            box = obb_to_corners(box)
         if box_type == "spheres":
-            geometries.append(trimesh.util.concatenate(create_corner_spheres(corners)))
+            geometries.append(trimesh.util.concatenate(create_corner_spheres(box)))
         elif box_type == "lines":
-            geometries.append(create_corner_connections(corners, radius=line_radius))
+            geometries.append(create_corner_connections(box, radius=line_radius))
     return geometries
 
 
 def visualize_bounding_boxes(
-    mesh,
     bounding_boxes,
+    mesh=None,
     box_type="spheres",
     line_radius=0.005,
     colormap="viridis",
     alpha=1.0,
+    combine_mesh=True,
 ):
     """
     Create a single mesh combining the main mesh and its bounding boxes.
@@ -1003,12 +1009,15 @@ def visualize_bounding_boxes(
     )
 
     # Set the main mesh color
-    mesh.visual.face_colors = [
-        255,
-        255,
-        255,
-        int(100 * alpha),
-    ]  # Light gray, semi-transparent
+    mesh_list = []
+    if mesh is not None:
+        mesh.visual.face_colors = [
+            255,
+            255,
+            255,
+            int(100 * alpha),
+        ]  # Light gray, semi-transparent
+        mesh_list.append(mesh)
 
     # Generate colors from the specified colormap
     colors = generate_colormap_colors(
@@ -1023,6 +1032,7 @@ def visualize_bounding_boxes(
             bb_geom.colors = np.tile(np.array(color) * 255, (len(bb_geom.entities), 1))
 
     # Combine all geometries into a single mesh
-    combined_mesh = trimesh.util.concatenate([mesh] + bb_geometries)
+    if combine_mesh:
+        return trimesh.util.concatenate(mesh_list + bb_geometries)
 
-    return combined_mesh
+    return mesh_list + bb_geometries

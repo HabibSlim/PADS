@@ -1,6 +1,7 @@
 """
 Neural Listeners on shape pairs.
 """
+
 import torch
 from torch import nn
 from models.mlp import MLP

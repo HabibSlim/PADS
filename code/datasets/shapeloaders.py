@@ -11,7 +11,6 @@ import trimesh
 from collections import defaultdict
 from datasets.metadata import (
     class_to_hex,
-    COMPAT_NO_MATCH,
     COMPAT_TRANSFORMS,
     SHAPENET_CLASSES,
 )
@@ -51,6 +50,7 @@ class SingleManifoldDataset:
         split="all",
         recenter_mesh=False,
         process_mesh=False,
+        sampling_fn=None,
     ):
         self.n_points = n_points
         self.mesh_idx = 0
@@ -59,9 +59,14 @@ class SingleManifoldDataset:
         self.decimate = decimate
         self.sample_first = sample_first
         self.batch_size = batch_size
-        self.sampling_fn = get_sampling_function(
-            sampling_method, noise_std=near_surface_noise, contain_method=contain_method
-        )
+        if sampling_fn is not None:
+            self.sampling_fn = sampling_fn
+        else:
+            self.sampling_fn = get_sampling_function(
+                sampling_method,
+                noise_std=near_surface_noise,
+                contain_method=contain_method,
+            )
         self.obj_dir = obj_dir
         self.shape_cls = shape_cls
         self.split = split
@@ -176,10 +181,6 @@ class CoMPaTManifoldDataset(SingleManifoldDataset):
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        if self.shape_cls in COMPAT_NO_MATCH:
-            raise ValueError(
-                "Shape class [%s] has no compatible ShapeNet class." % self.shape_cls
-            )
         self.scale_to_shapenet = scale_to_shapenet
         self.align_to_shapenet = align_to_shapenet
         if self.scale_to_shapenet:
@@ -194,9 +195,12 @@ class CoMPaTManifoldDataset(SingleManifoldDataset):
                 [[sx, 0, 0, 0], [0, sy, 0, 0], [0, 0, sz, 0], [0, 0, 0, 1]]
             )
         if self.align_to_shapenet:
-            mat = np.array(COMPAT_TRANSFORMS[self.shape_cls])
-            mat = np.pad(mat, (0, 1))
-            mat[3, 3] = 1
+            if self.shape_cls in COMPAT_TRANSFORMS:
+                mat = np.array(COMPAT_TRANSFORMS[self.shape_cls])
+                mat = np.pad(mat, (0, 1))
+                mat[3, 3] = 1
+            else:
+                mat = np.eye(4)
             self.align_matrix = mat
 
     def init_class_objs(self):

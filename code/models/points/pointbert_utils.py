@@ -327,10 +327,10 @@ class PointNetFeaturePropagation(nn.Module):
 
 def inplace_relu(m):
     """
-    Replace all ReLU activations with an inplace one.
+    Sets all ReLU-like activations to inplace mode
     """
     classname = m.__class__.__name__
-    if classname.find("ReLU") != -1:
+    if any(x in classname for x in ["ReLU", "LeakyReLU", "PReLU"]):
         m.inplace = True
 
 
