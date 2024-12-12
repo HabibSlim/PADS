@@ -7,202 +7,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 import models.sampling as smp
-from util.misc import default
+
+from util.misc import default, zero_module
+from models.attention import CrossAttention, FeedForward, MaskableCrossAttention
+from models.modules import (
+    AdaLayerNorm,
+    LayerScale,
+    StackedRandomGenerator,
+    TimestepEmbedding,
+)
 
 
-def zero_module(module):
-    """
-    Zero out the parameters of a module and return it.
-    """
-    for p in module.parameters():
-        p.detach().zero_()
-    return module
-
-
-class PositionalEmbedding(torch.nn.Module):
-    def __init__(self, num_channels, max_positions=10000, endpoint=False):
-        super().__init__()
-        self.num_channels = num_channels
-        self.max_positions = max_positions
-        self.endpoint = endpoint
-
-    def forward(self, x):
-        freqs = torch.arange(
-            start=0, end=self.num_channels // 2, dtype=torch.float32, device=x.device
-        )
-        freqs = freqs / (self.num_channels // 2 - (1 if self.endpoint else 0))
-        freqs = (1 / self.max_positions) ** freqs
-        x = x.ger(freqs.to(x.dtype))
-        x = torch.cat([x.cos(), x.sin()], dim=1)
-        return x
-
-
-class CrossAttention(nn.Module):
-    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.0):
-        super().__init__()
-        inner_dim = dim_head * heads
-
-        if context_dim is None:
-            context_dim = query_dim
-
-        self.scale = dim_head**-0.5
-        self.heads = heads
-
-        self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
-        self.to_k = nn.Linear(context_dim, inner_dim, bias=False)
-        self.to_v = nn.Linear(context_dim, inner_dim, bias=False)
-
-        self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, query_dim), nn.Dropout(dropout)
-        )
-
-    def forward(self, x, context=None):
-        h = self.heads
-        q = self.to_q(x)
-
-        context = default(context, x)
-        k = self.to_k(context)
-        v = self.to_v(context)
-
-        q, k, v = map(lambda t: rearrange(t, "b n (h d) -> (b h) n d", h=h), (q, k, v))
-
-        sim = torch.einsum("b i d, b j d -> b i j", q, k) * self.scale
-
-        attn = sim.softmax(dim=-1)
-        out = torch.einsum("b i j, b j d -> b i d", attn, v)
-        out = rearrange(out, "(b h) n d -> b n (h d)", h=h)
-        return self.to_out(out)
-
-
-class MaskableCrossAttention(nn.Module):
-    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.0):
-        super().__init__()
-        inner_dim = dim_head * heads
-
-        if context_dim is None:
-            context_dim = query_dim
-
-        self.scale = dim_head**-0.5
-        self.heads = heads
-
-        self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
-        self.to_k = nn.Linear(context_dim, inner_dim, bias=False)
-        self.to_v = nn.Linear(context_dim, inner_dim, bias=False)
-
-        self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, query_dim), nn.Dropout(dropout)
-        )
-
-    def forward(self, x, context=None, context_mask=None):
-        """
-        Args:
-            x: Input tensor of shape (B, N, D) where N is the query sequence length
-            context: Context tensor of shape (B, L, D) where L is the context sequence length
-            context_mask: Boolean mask of shape (B, L) where True means the value is masked
-
-        Returns:
-            Tensor of shape (B, N, D)
-
-        Where:
-            B: batch size
-            N: sequence length of query
-            L: sequence length of context
-            D: dimension of input features
-        """
-        h = self.heads
-        q = self.to_q(x)
-
-        context = default(context, x)
-        k = self.to_k(context)
-        v = self.to_v(context)
-
-        # where d = dim_head
-        q, k, v = map(lambda t: rearrange(t, "b n (h d) -> (b h) n d", h=h), (q, k, v))
-
-        # sim shape: (B*h, N, L)
-        sim = torch.einsum("b i d, b j d -> b i j", q, k) * self.scale
-
-        if context_mask is not None:
-            # Expand mask for the heads dimension
-            # context_mask shape: (B, L) -> (B, 1, L) -> (B*h, 1, L)
-            mask = context_mask.unsqueeze(1).expand(-1, 1, -1)
-            mask = mask.repeat_interleave(h, dim=0)
-
-            # Expand mask for the query dimension
-            # mask shape: (B*h, 1, L) -> (B*h, N, L)
-            mask = mask.expand(-1, x.size(1), -1)
-
-            # Create a mask of -inf where context_mask is True
-            mask_value = -torch.finfo(sim.dtype).max
-            sim = sim.masked_fill(mask, mask_value)
-
-        # attn shape: (B*h, N, L)
-        attn = sim.softmax(dim=-1)
-
-        # out shape: (B*h, N, d) -> (B, N, h*d)
-        out = torch.einsum("b i j, b j d -> b i d", attn, v)
-        out = rearrange(out, "(b h) n d -> b n (h d)", h=h)
-
-        return self.to_out(out)
-
-
-class LayerScale(nn.Module):
-    def __init__(self, dim, init_values=1e-5, inplace=False):
-        super().__init__()
-        self.inplace = inplace
-        self.gamma = nn.Parameter(init_values * torch.ones(dim))
-
-    def forward(self, x):
-        return x.mul_(self.gamma) if self.inplace else x * self.gamma
-
-
-class GEGLU(nn.Module):
-    def __init__(self, dim_in, dim_out):
-        super().__init__()
-        self.proj = nn.Linear(dim_in, dim_out * 2)
-
-    def forward(self, x):
-        x, gate = self.proj(x).chunk(2, dim=-1)
-        return x * F.gelu(gate)
-
-
-class FeedForward(nn.Module):
-    def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0.0):
-        super().__init__()
-        inner_dim = int(dim * mult)
-        if dim_out is None:
-            dim_out = dim
-
-        project_in = (
-            nn.Sequential(nn.Linear(dim, inner_dim), nn.GELU())
-            if not glu
-            else GEGLU(dim, inner_dim)
-        )
-
-        self.net = nn.Sequential(
-            project_in, nn.Dropout(dropout), nn.Linear(inner_dim, dim_out)
-        )
-
-    def forward(self, x):
-        return self.net(x)
-
-
-class AdaLayerNorm(nn.Module):
-    def __init__(self, n_embd):
-        super().__init__()
-
-        self.silu = nn.SiLU()
-        self.linear = nn.Linear(n_embd, n_embd * 2)
-        self.layernorm = nn.LayerNorm(n_embd, elementwise_affine=False)
-
-    def forward(self, x, timestep):
-        emb = self.linear(timestep)
-        scale, shift = torch.chunk(emb, 2, dim=2)
-        x = self.layernorm(x) * (1 + scale) + shift
-        return x
-
-
-class BasicTransformerBlock(nn.Module):
+class LatentArrayDenoiserBlock(nn.Module):
     def __init__(
         self,
         dim,
@@ -254,13 +70,9 @@ class BasicTransformerBlock(nn.Module):
         return x
 
 
-class LatentArrayTransformer(nn.Module):
+class LatentArrayDenoiser(nn.Module):
     """
-    Transformer block for image-like data.
-    First, project the input (aka embedding)
-    and reshape to b, t, d.
-    Then apply standard transformer action.
-    Finally, reshape to image
+    Transformer block for denoising a latent array.
     """
 
     def __init__(
@@ -292,7 +104,7 @@ class LatentArrayTransformer(nn.Module):
 
         self.transformer_blocks = nn.ModuleList(
             [
-                BasicTransformerBlock(
+                LatentArrayDenoiserBlock(
                     inner_dim, n_heads, d_head, dropout=dropout, context_dim=context_dim
                 )
                 for _ in range(depth)
@@ -306,7 +118,7 @@ class LatentArrayTransformer(nn.Module):
             self.proj_out = zero_module(nn.Linear(inner_dim, out_channels, bias=False))
 
         self.context_dim = context_dim
-        self.map_noise = PositionalEmbedding(t_channels)
+        self.map_noise = TimestepEmbedding(t_channels)
 
         self.map_layer0 = nn.Linear(in_features=t_channels, out_features=inner_dim)
         self.map_layer1 = nn.Linear(in_features=inner_dim, out_features=inner_dim)
@@ -323,34 +135,6 @@ class LatentArrayTransformer(nn.Module):
         x = self.norm(x)
         x = self.proj_out(x)
         return x
-
-
-class StackedRandomGenerator:
-    def __init__(self, device, seeds):
-        super().__init__()
-        self.generators = [
-            torch.Generator(device).manual_seed(int(seed) % (1 << 32)) for seed in seeds
-        ]
-
-    def randn(self, size, **kwargs):
-        assert size[0] == len(self.generators)
-        return torch.stack(
-            [torch.randn(size[1:], generator=gen, **kwargs) for gen in self.generators]
-        )
-
-    def randn_like(self, input):
-        return self.randn(
-            input.shape, dtype=input.dtype, layout=input.layout, device=input.device
-        )
-
-    def randint(self, *args, size, **kwargs):
-        assert size[0] == len(self.generators)
-        return torch.stack(
-            [
-                torch.randint(*args, size=size[1:], generator=gen, **kwargs)
-                for gen in self.generators
-            ]
-        )
 
 
 class EDMBase(torch.nn.Module):
@@ -380,7 +164,7 @@ class EDMBase(torch.nn.Module):
         self.sigma_data = sigma_data
         self.out_channels = channels if out_channels is None else out_channels
 
-        self.model = LatentArrayTransformer(
+        self.model = LatentArrayDenoiser(
             in_channels=channels,
             t_channels=256,
             n_heads=n_heads,

@@ -6,154 +6,20 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from timm.models.layers import DropPath
 from torch import einsum, nn
 from util.misc import default
 
 
-class GEGLU(nn.Module):
-    def forward(self, x):
-        x, gates = x.chunk(2, dim=-1)
-        return x * F.gelu(gates)
-
-
-class FeedForward(nn.Module):
-    def __init__(self, dim, mult=4, drop_path_rate=0.0, use_geglu=True):
-        super().__init__()
-        if use_geglu:
-            self.net = nn.Sequential(
-                nn.Linear(dim, dim * mult * 2), GEGLU(), nn.Linear(dim * mult, dim)
-            )
-        else:
-            self.net = nn.Sequential(
-                nn.Linear(dim, dim * mult), nn.ReLU(), nn.Linear(dim * mult, dim)
-            )
-
-        self.drop_path = (
-            DropPath(drop_path_rate) if drop_path_rate > 0.0 else nn.Identity()
-        )
-
-    def forward(self, x):
-        return self.drop_path(self.net(x))
-
-
-class Attention(nn.Module):
-    def __init__(
-        self,
-        query_dim,
-        context_dim=None,
-        heads=8,
-        dim_head=64,
-        drop_path_rate=0.0,
-        use_geglu=True,
-    ):
-        super().__init__()
-        inner_dim = dim_head * heads
-        context_dim = default(context_dim, query_dim)
-        self.scale = dim_head**-0.5
-        self.heads = heads
-
-        self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
-        self.to_kv = nn.Linear(context_dim, inner_dim * 2, bias=False)
-        self.to_out = nn.Linear(inner_dim, query_dim)
-
-        self.drop_path = (
-            DropPath(drop_path_rate) if drop_path_rate > 0.0 else nn.Identity()
-        )
-
-    def forward(self, x, context=None, mask=None):
-        h = self.heads
-
-        q = self.to_q(x)
-        context = default(context, x)
-        k, v = self.to_kv(context).chunk(2, dim=-1)
-
-        q, k, v = map(lambda t: rearrange(t, "b n (h d) -> (b h) n d", h=h), (q, k, v))
-
-        sim = einsum("b i d, b j d -> b i j", q, k) * self.scale
-
-        if mask is not None:
-            mask = rearrange(mask, "b ... -> b (...)")
-            max_neg_value = -torch.finfo(sim.dtype).max
-            mask = repeat(mask, "b j -> (b h) () j", h=h)
-            sim.masked_fill_(~mask, max_neg_value)
-
-        attn = sim.softmax(dim=-1)
-        out = einsum("b i j, b j d -> b i d", attn, v)
-        out = rearrange(out, "(b h) n d -> b n (h d)", h=h)
-        return self.drop_path(self.to_out(out))
-
-
-class PreNorm(nn.Module):
-    def __init__(self, dim, fn, context_dim=None):
-        super().__init__()
-        self.fn = fn
-        self.norm = nn.LayerNorm(dim)
-        self.norm_context = (
-            nn.LayerNorm(context_dim) if context_dim is not None else None
-        )
-
-    def forward(self, x, **kwargs):
-        x = self.norm(x)
-
-        if self.norm_context is not None:
-            context = kwargs.get("context", x)
-            normed_context = self.norm_context(context)
-            kwargs.update(context=normed_context)
-
-        return self.fn(x, **kwargs)
-
-
-class AttentionBlock(nn.Module):
-    def __init__(
-        self,
-        dim,
-        heads,
-        dim_head,
-        drop_path_rate=0.0,
-        use_geglu=True,
-    ):
-        super().__init__()
-        self.attn = PreNorm(
-            dim,
-            Attention(
-                dim,
-                heads=heads,
-                dim_head=dim_head,
-                drop_path_rate=drop_path_rate,
-                use_geglu=use_geglu,
-            ),
-        )
-        self.ff = PreNorm(dim, FeedForward(dim, drop_path_rate=drop_path_rate))
-
-    def forward(self, x, context=None, mask=None):
-        x = self.attn(x, context=context, mask=mask) + x
-        x = self.ff(x) + x
-        return x
-
-
-class StackedAttentionBlocks(nn.Module):
-    def __init__(
-        self, dim, depth, heads, dim_head, weight_tie_layers=False, use_geglu=True
-    ):
-        super().__init__()
-
-        self.layers = nn.ModuleList([])
-        for _ in range(depth):
-            self.layers.append(
-                AttentionBlock(dim, heads, dim_head, use_geglu=use_geglu)
-            )
-
-        if weight_tie_layers:
-            self.layers = nn.ModuleList([self.layers[0]] * depth)
-
-    def forward(self, x, context=None, mask=None):
-        for layer in self.layers:
-            x = layer(x, context=context, mask=mask)
-        return x
+"""
+Embedding layers for points, timesteps, and Cartesian positions.
+"""
 
 
 class PointEmbed(nn.Module):
+    """
+    Point embedding layer for point cloud data.
+    """
+
     def __init__(self, hidden_dim=48, dim=128):
         super().__init__()
 
@@ -204,7 +70,33 @@ class PointEmbed(nn.Module):
         return embed
 
 
+class TimestepEmbedding(torch.nn.Module):
+    """
+    Timestep embedding layer for timesteps.
+    """
+
+    def __init__(self, num_channels, max_positions=10000, endpoint=False):
+        super().__init__()
+        self.num_channels = num_channels
+        self.max_positions = max_positions
+        self.endpoint = endpoint
+
+    def forward(self, x):
+        freqs = torch.arange(
+            start=0, end=self.num_channels // 2, dtype=torch.float32, device=x.device
+        )
+        freqs = freqs / (self.num_channels // 2 - (1 if self.endpoint else 0))
+        freqs = (1 / self.max_positions) ** freqs
+        x = x.ger(freqs.to(x.dtype))
+        x = torch.cat([x.cos(), x.sin()], dim=1)
+        return x
+
+
 class CartesianPosEmbed(nn.Module):
+    """
+    Cartesian position embedding layer for 2D images.
+    """
+
     def __init__(self, n_latents, latent_dim):
         super().__init__()
         self.projection = nn.Conv2d(4, n_latents, 1)
@@ -220,7 +112,16 @@ class CartesianPosEmbed(nn.Module):
         return inputs + self.projection(self.pe)
 
 
+"""
+Other useful layers.
+"""
+
+
 class DiagonalGaussianDistribution(object):
+    """
+    Diagonal Gaussian distribution for VAEs.
+    """
+
     def __init__(self, mean, logvar, deterministic=False, no_reduction=False):
         self.mean = mean
         self.logvar = logvar
@@ -280,3 +181,68 @@ class DiagonalGaussianDistribution(object):
 
     def mode(self):
         return self.mean
+
+
+class LayerScale(nn.Module):
+    """
+    Layer scale module.
+    """
+
+    def __init__(self, dim, init_values=1e-5, inplace=False):
+        super().__init__()
+        self.inplace = inplace
+        self.gamma = nn.Parameter(init_values * torch.ones(dim))
+
+    def forward(self, x):
+        return x.mul_(self.gamma) if self.inplace else x * self.gamma
+
+
+class AdaLayerNorm(nn.Module):
+    """
+    Adaptive layer normalization layer with timestep input.
+    """
+
+    def __init__(self, n_embd):
+        super().__init__()
+
+        self.silu = nn.SiLU()
+        self.linear = nn.Linear(n_embd, n_embd * 2)
+        self.layernorm = nn.LayerNorm(n_embd, elementwise_affine=False)
+
+    def forward(self, x, timestep):
+        emb = self.linear(timestep)
+        scale, shift = torch.chunk(emb, 2, dim=2)
+        x = self.layernorm(x) * (1 + scale) + shift
+        return x
+
+
+class StackedRandomGenerator:
+    """
+    Random number generator for stacked input seeds.
+    """
+
+    def __init__(self, device, seeds):
+        super().__init__()
+        self.generators = [
+            torch.Generator(device).manual_seed(int(seed) % (1 << 32)) for seed in seeds
+        ]
+
+    def randn(self, size, **kwargs):
+        assert size[0] == len(self.generators)
+        return torch.stack(
+            [torch.randn(size[1:], generator=gen, **kwargs) for gen in self.generators]
+        )
+
+    def randn_like(self, input):
+        return self.randn(
+            input.shape, dtype=input.dtype, layout=input.layout, device=input.device
+        )
+
+    def randint(self, *args, size, **kwargs):
+        assert size[0] == len(self.generators)
+        return torch.stack(
+            [
+                torch.randint(*args, size=size[1:], generator=gen, **kwargs)
+                for gen in self.generators
+            ]
+        )

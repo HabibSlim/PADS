@@ -4,10 +4,12 @@ Autoencoder models for point clouds.
 
 from torch import nn
 from models.modules import (
-    Attention,
     DiagonalGaussianDistribution,
-    FeedForward,
     PointEmbed,
+)
+from models.attention import (
+    Attention,
+    FeedForward,
     PreNorm,
 )
 from util.misc import cache_fn, fps_subsample
