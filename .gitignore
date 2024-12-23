@@ -19,3 +19,8 @@ output/*
 output/**/*
 wandb/*
 wandb/**/*
+
+**/wandb/
+**/wandb/**
+code/wandb/
+code/wandb/**
