@@ -1,0 +1,72 @@
+[04:43:10.820150] Model params:
+ {
+    "accum_iter": 1,
+    "batch_size": 8,
+    "blr": 0.0001,
+    "clip_grad": 5.0,
+    "layer_decay": 0.75,
+    "lr": 3.125e-06,
+    "min_lr": 1e-06,
+    "model_name": "part_ae_d8_m8_l32",
+    "warmup_epochs": 1,
+    "weight_decay": 0.05
+}
+[04:43:10.820429] Start training for [5] epochs, from epoch [0].
+[04:43:10.904950] [04:43:10.905550] [04:43:10.905720] [04:43:10.905894] [04:43:10.906073] [04:43:10.906253] [04:43:10.906420] [04:43:10.906589] [04:43:10.906756] [04:43:10.906922] [04:43:10.907108]
+Traceback (most recent call last):
+  File "/home/slimhy/Documents/PADS/code/main_part_ae.py", line 425, in <module>
+    main(args)
+  File "/home/slimhy/Documents/PADS/code/main_part_ae.py", line 401, in main
+    train_model(
+  File "/home/slimhy/Documents/PADS/code/main_part_ae.py", line 237, in train_model
+    train_stats = train_one_epoch(
+  File "/home/slimhy/Documents/PADS/code/engine_part_ae.py", line 127, in train_one_epoch
+    for data_step, data_tuple in enumerate(
+  File "/home/slimhy/Documents/PADS/code/util/misc.py", line 223, in log_every
+    for obj in iterable:
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 633, in __next__
+    data = self._next_data()
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1345, in _next_data
+    return self._process_data(data)
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1371, in _process_data
+    data.reraise()
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/_utils.py", line 644, in reraise
+    raise exception
+TypeError: Caught TypeError in DataLoader worker process 0.
+Original Traceback (most recent call last):
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/worker.py", line 308, in _worker_loop
+    data = fetcher.fetch(index)
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 51, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 51, in <listcomp>
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+TypeError: 'DataLoader' object is not subscriptable
+
+Traceback (most recent call last):
+  File "/home/slimhy/Documents/PADS/code/main_part_ae.py", line 425, in <module>
+    main(args)
+  File "/home/slimhy/Documents/PADS/code/main_part_ae.py", line 401, in main
+    train_model(
+  File "/home/slimhy/Documents/PADS/code/main_part_ae.py", line 237, in train_model
+    train_stats = train_one_epoch(
+  File "/home/slimhy/Documents/PADS/code/engine_part_ae.py", line 127, in train_one_epoch
+    for data_step, data_tuple in enumerate(
+  File "/home/slimhy/Documents/PADS/code/util/misc.py", line 223, in log_every
+    for obj in iterable:
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 633, in __next__
+    data = self._next_data()
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1345, in _next_data
+    return self._process_data(data)
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1371, in _process_data
+    data.reraise()
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/_utils.py", line 644, in reraise
+    raise exception
+TypeError: Caught TypeError in DataLoader worker process 0.
+Original Traceback (most recent call last):
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/worker.py", line 308, in _worker_loop
+    data = fetcher.fetch(index)
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 51, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 51, in <listcomp>
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+TypeError: 'DataLoader' object is not subscriptable

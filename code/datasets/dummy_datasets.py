@@ -3,18 +3,22 @@ Dummy dataset for part pointclouds with varying number of parts.
 """
 
 import torch
+from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data import Dataset, DataLoader
 
 
 class DummyPartDataset(Dataset):
-    def __init__(self, num_samples=1000, max_parts=5, num_points=1024, num_occ=2048):
+    def __init__(
+        self, num_samples=1000, max_parts=5, num_points=1024, num_occ=2048, n_replicas=1
+    ):
         self.num_samples = num_samples
         self.max_parts = max_parts
         self.num_points = num_points
         self.num_occ = num_occ
+        self.n_replicas = n_replicas
 
     def __len__(self):
-        return self.num_samples
+        return self.num_samples * self.n_replicas
 
     def __getitem__(self, idx):
         # Random number of parts (1 to max_parts)
@@ -90,19 +94,3 @@ def collate_varying_parts(batch):
         "occupancy_points": occ_points,
         "occupancy_labels": occ_labels,
     }
-
-
-def get_parts_dataloader(
-    num_samples=1000, max_parts=5, num_points=1024, num_occ=2048, batch_size=32
-):
-    """
-    Instantiate a dataloader for the dummy part dataset.
-    """
-    dataset = DummyPartDataset(num_samples, max_parts, num_points, num_occ)
-    dataloader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        collate_fn=collate_varying_parts,
-    )
-    return dataloader

@@ -1,0 +1,88 @@
+[04:46:28.642866] Model params:
+ {
+    "accum_iter": 1,
+    "batch_size": 8,
+    "blr": 0.0001,
+    "clip_grad": 5.0,
+    "layer_decay": 0.75,
+    "lr": 3.125e-06,
+    "min_lr": 1e-06,
+    "model_name": "part_ae_d8_m8_l32",
+    "warmup_epochs": 1,
+    "weight_decay": 0.05
+}
+[04:46:28.643274] Start training for [5] epochs, from epoch [0].
+[04:46:28.742741] [04:46:28.743315] [04:46:28.743508] [04:46:28.743697] [04:46:28.743881] [04:46:28.744055] [04:46:28.744231] [04:46:28.744402] [04:46:28.744590] [04:46:28.744762] [04:46:28.744956]
+Traceback (most recent call last):
+  File "/home/slimhy/Documents/PADS/code/main_part_ae.py", line 424, in <module>
+    main(args)
+  File "/home/slimhy/Documents/PADS/code/main_part_ae.py", line 400, in main
+    train_model(
+  File "/home/slimhy/Documents/PADS/code/main_part_ae.py", line 237, in train_model
+    train_stats = train_one_epoch(
+  File "/home/slimhy/Documents/PADS/code/engine_part_ae.py", line 127, in train_one_epoch
+    for data_step, data_tuple in enumerate(
+  File "/home/slimhy/Documents/PADS/code/util/misc.py", line 223, in log_every
+    for obj in iterable:
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 633, in __next__
+    data = self._next_data()
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1345, in _next_data
+    return self._process_data(data)
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1371, in _process_data
+    data.reraise()
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/_utils.py", line 644, in reraise
+    raise exception
+RuntimeError: Caught RuntimeError in DataLoader worker process 0.
+Original Traceback (most recent call last):
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/worker.py", line 308, in _worker_loop
+    data = fetcher.fetch(index)
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 54, in fetch
+    return self.collate_fn(data)
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/collate.py", line 265, in default_collate
+    return collate(batch, collate_fn_map=default_collate_fn_map)
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/collate.py", line 127, in collate
+    return elem_type({key: collate([d[key] for d in batch], collate_fn_map=collate_fn_map) for key in elem})
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/collate.py", line 127, in <dictcomp>
+    return elem_type({key: collate([d[key] for d in batch], collate_fn_map=collate_fn_map) for key in elem})
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/collate.py", line 119, in collate
+    return collate_fn_map[elem_type](batch, collate_fn_map=collate_fn_map)
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/collate.py", line 161, in collate_tensor_fn
+    out = elem.new(storage).resize_(len(batch), *list(elem.size()))
+RuntimeError: Trying to resize storage that is not resizable
+
+Traceback (most recent call last):
+  File "/home/slimhy/Documents/PADS/code/main_part_ae.py", line 424, in <module>
+    main(args)
+  File "/home/slimhy/Documents/PADS/code/main_part_ae.py", line 400, in main
+    train_model(
+  File "/home/slimhy/Documents/PADS/code/main_part_ae.py", line 237, in train_model
+    train_stats = train_one_epoch(
+  File "/home/slimhy/Documents/PADS/code/engine_part_ae.py", line 127, in train_one_epoch
+    for data_step, data_tuple in enumerate(
+  File "/home/slimhy/Documents/PADS/code/util/misc.py", line 223, in log_every
+    for obj in iterable:
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 633, in __next__
+    data = self._next_data()
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1345, in _next_data
+    return self._process_data(data)
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1371, in _process_data
+    data.reraise()
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/_utils.py", line 644, in reraise
+    raise exception
+RuntimeError: Caught RuntimeError in DataLoader worker process 0.
+Original Traceback (most recent call last):
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/worker.py", line 308, in _worker_loop
+    data = fetcher.fetch(index)
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 54, in fetch
+    return self.collate_fn(data)
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/collate.py", line 265, in default_collate
+    return collate(batch, collate_fn_map=default_collate_fn_map)
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/collate.py", line 127, in collate
+    return elem_type({key: collate([d[key] for d in batch], collate_fn_map=collate_fn_map) for key in elem})
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/collate.py", line 127, in <dictcomp>
+    return elem_type({key: collate([d[key] for d in batch], collate_fn_map=collate_fn_map) for key in elem})
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/collate.py", line 119, in collate
+    return collate_fn_map[elem_type](batch, collate_fn_map=collate_fn_map)
+  File "/home/slimhy/anaconda3/envs/shape2vecset/lib/python3.10/site-packages/torch/utils/data/_utils/collate.py", line 161, in collate_tensor_fn
+    out = elem.new(storage).resize_(len(batch), *list(elem.size()))
+RuntimeError: Trying to resize storage that is not resizable

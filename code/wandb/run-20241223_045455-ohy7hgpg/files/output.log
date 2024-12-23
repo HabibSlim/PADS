@@ -1,0 +1,55 @@
+[04:54:55.961060] Model params:
+ {
+    "accum_iter": 1,
+    "batch_size": 8,
+    "blr": 0.0001,
+    "clip_grad": 5.0,
+    "layer_decay": 0.75,
+    "lr": 3.125e-06,
+    "min_lr": 1e-06,
+    "model_name": "part_ae_d8_m8_l32",
+    "warmup_epochs": 1,
+    "weight_decay": 0.05
+}
+[04:54:55.961443] Start training for [5] epochs, from epoch [0].
+[04:54:56.612057] Epoch: [0]  [0/2]  eta: 0:00:01  loss_vol: 0.6943 (0.6943)  loss_near: 0.0694 (0.0694)  loss_kl: 0.0001 (0.0001)  acc: 0.5001 (0.5001)  iou: 0.3740 (0.3740)  time: 0.6486  data: 0.0509  max mem: 1634
+[04:54:56.884199] Epoch: [0]  [1/2]  eta: 0:00:00  loss_vol: 0.6943 (0.6945)  loss_near: 0.0694 (0.0694)  loss_kl: 0.0001 (0.0001)  acc: 0.4994 (0.4998)  iou: 0.3740 (0.3741)  time: 0.4601  data: 0.0264  max mem: 1634
+[04:54:56.906489] Epoch: [0] Total time: 0:00:00 (0.4717 s / it)
+[04:54:56.906752] Averaged stats: loss_vol: 0.6943 (0.6945)  loss_near: 0.0694 (0.0694)  loss_kl: 0.0001 (0.0001)  acc: 0.4994 (0.4998)  iou: 0.3740 (0.3741)
+[04:55:01.982314] Validation:  [0/2]  eta: 0:00:00  loss_vol: 0.6931 (0.6931)  loss_near: 0.0693 (0.0693)  loss_kl: 0.0001 (0.0001)  acc: 0.5046 (0.5046)  iou: 0.5046 (0.5046)  time: 0.0880  data: 0.0624  max mem: 1634
+[04:55:02.005699] Validation:  [1/2]  eta: 0:00:00  loss_vol: 0.6931 (0.6932)  loss_near: 0.0693 (0.0693)  loss_kl: 0.0001 (0.0001)  acc: 0.4958 (0.5002)  iou: 0.4958 (0.5002)  time: 0.0553  data: 0.0320  max mem: 1634
+[04:55:02.039426] Validation: Total time: 0:00:00 (0.0728 s / it)
+[04:55:02.039656] Validation stats: loss_vol: 0.6931 (0.6932)  loss_near: 0.0693 (0.0693)  loss_kl: 0.0001 (0.0001)  acc: 0.4958 (0.5002)  iou: 0.4958 (0.5002)
+[04:55:02.403688] Epoch: [1]  [0/2]  eta: 0:00:00  loss_vol: 0.6941 (0.6941)  loss_near: 0.0694 (0.0694)  loss_kl: 0.0001 (0.0001)  acc: 0.5011 (0.5011)  iou: 0.2537 (0.2537)  time: 0.3608  data: 0.0654  max mem: 1634
+[04:55:02.677682] Epoch: [1]  [1/2]  eta: 0:00:00  loss_vol: 0.6936 (0.6939)  loss_near: 0.0694 (0.0694)  loss_kl: 0.0001 (0.0001)  acc: 0.5011 (0.5026)  iou: 0.0000 (0.1268)  time: 0.3171  data: 0.0335  max mem: 1634
+[04:55:02.716503] Epoch: [1] Total time: 0:00:00 (0.3370 s / it)
+[04:55:02.716636] Averaged stats: loss_vol: 0.6936 (0.6939)  loss_near: 0.0694 (0.0694)  loss_kl: 0.0001 (0.0001)  acc: 0.5011 (0.5026)  iou: 0.0000 (0.1268)
+[04:55:02.810515] Validation:  [0/2]  eta: 0:00:00  loss_vol: 0.6938 (0.6938)  loss_near: 0.0694 (0.0694)  loss_kl: 0.0001 (0.0001)  acc: 0.5043 (0.5043)  iou: 0.0000 (0.0000)  time: 0.0889  data: 0.0632  max mem: 1634
+[04:55:02.843820] Validation:  [1/2]  eta: 0:00:00  loss_vol: 0.6938 (0.6945)  loss_near: 0.0694 (0.0694)  loss_kl: 0.0001 (0.0001)  acc: 0.4904 (0.4973)  iou: 0.0000 (0.0000)  time: 0.0607  data: 0.0357  max mem: 1634
+[04:55:02.882457] Validation: Total time: 0:00:00 (0.0807 s / it)
+[04:55:02.882658] Validation stats: loss_vol: 0.6938 (0.6945)  loss_near: 0.0694 (0.0694)  loss_kl: 0.0001 (0.0001)  acc: 0.4904 (0.4973)  iou: 0.0000 (0.0000)
+[04:55:03.247156] Epoch: [2]  [0/2]  eta: 0:00:00  loss_vol: 0.6951 (0.6951)  loss_near: 0.0695 (0.0695)  loss_kl: 0.0001 (0.0001)  acc: 0.5093 (0.5093)  iou: 0.0000 (0.0000)  time: 0.3613  data: 0.0677  max mem: 1634
+[04:55:03.521435] Epoch: [2]  [1/2]  eta: 0:00:00  loss_vol: 0.6950 (0.6950)  loss_near: 0.0695 (0.0695)  loss_kl: 0.0001 (0.0001)  acc: 0.4972 (0.5032)  iou: 0.0000 (0.0316)  time: 0.3175  data: 0.0347  max mem: 1634
+[04:55:03.556492] Epoch: [2] Total time: 0:00:00 (0.3355 s / it)
+[04:55:03.556626] Averaged stats: loss_vol: 0.6950 (0.6950)  loss_near: 0.0695 (0.0695)  loss_kl: 0.0001 (0.0001)  acc: 0.4972 (0.5032)  iou: 0.0000 (0.0316)
+[04:55:04.245622] Validation:  [0/2]  eta: 0:00:00  loss_vol: 0.6931 (0.6931)  loss_near: 0.0693 (0.0693)  loss_kl: 0.0001 (0.0001)  acc: 0.5057 (0.5057)  iou: 0.0000 (0.0000)  time: 0.0897  data: 0.0633  max mem: 1634
+[04:55:04.269450] Validation:  [1/2]  eta: 0:00:00  loss_vol: 0.6931 (0.6931)  loss_near: 0.0693 (0.0693)  loss_kl: 0.0001 (0.0001)  acc: 0.5013 (0.5035)  iou: 0.0000 (0.0000)  time: 0.0564  data: 0.0327  max mem: 1634
+[04:55:04.308166] Validation: Total time: 0:00:00 (0.0764 s / it)
+[04:55:04.308670] Validation stats: loss_vol: 0.6931 (0.6931)  loss_near: 0.0693 (0.0693)  loss_kl: 0.0001 (0.0001)  acc: 0.5013 (0.5035)  iou: 0.0000 (0.0000)
+[04:55:04.673874] Epoch: [3]  [0/2]  eta: 0:00:00  loss_vol: 0.6956 (0.6956)  loss_near: 0.0696 (0.0696)  loss_kl: 0.0001 (0.0001)  acc: 0.4978 (0.4978)  iou: 0.0634 (0.0634)  time: 0.3618  data: 0.0658  max mem: 1634
+[04:55:04.948332] Epoch: [3]  [1/2]  eta: 0:00:00  loss_vol: 0.6934 (0.6945)  loss_near: 0.0694 (0.0695)  loss_kl: 0.0001 (0.0001)  acc: 0.4978 (0.5048)  iou: 0.0634 (0.1900)  time: 0.3179  data: 0.0338  max mem: 1634
+[04:55:04.987072] Epoch: [3] Total time: 0:00:00 (0.3377 s / it)
+[04:55:04.987459] Averaged stats: loss_vol: 0.6934 (0.6945)  loss_near: 0.0694 (0.0695)  loss_kl: 0.0001 (0.0001)  acc: 0.4978 (0.5048)  iou: 0.0634 (0.1900)
+[04:55:05.083316] Validation:  [0/2]  eta: 0:00:00  loss_vol: 0.6934 (0.6934)  loss_near: 0.0693 (0.0693)  loss_kl: 0.0001 (0.0001)  acc: 0.5005 (0.5005)  iou: 0.5005 (0.5005)  time: 0.0890  data: 0.0634  max mem: 1634
+[04:55:05.106742] Validation:  [1/2]  eta: 0:00:00  loss_vol: 0.6934 (0.6935)  loss_near: 0.0693 (0.0693)  loss_kl: 0.0001 (0.0001)  acc: 0.4977 (0.4991)  iou: 0.4977 (0.4991)  time: 0.0559  data: 0.0325  max mem: 1634
+[04:55:05.148284] Validation: Total time: 0:00:00 (0.0773 s / it)
+[04:55:05.148663] Validation stats: loss_vol: 0.6934 (0.6935)  loss_near: 0.0693 (0.0693)  loss_kl: 0.0001 (0.0001)  acc: 0.4977 (0.4991)  iou: 0.4977 (0.4991)
+[04:55:05.511668] Epoch: [4]  [0/2]  eta: 0:00:00  loss_vol: 0.6949 (0.6949)  loss_near: 0.0694 (0.0694)  loss_kl: 0.0001 (0.0001)  acc: 0.4972 (0.4972)  iou: 0.4327 (0.4327)  time: 0.3598  data: 0.0679  max mem: 1634
+[04:55:05.785297] Epoch: [4]  [1/2]  eta: 0:00:00  loss_vol: 0.6946 (0.6948)  loss_near: 0.0694 (0.0695)  loss_kl: 0.0001 (0.0001)  acc: 0.4972 (0.4995)  iou: 0.3765 (0.4046)  time: 0.3164  data: 0.0348  max mem: 1634
+[04:55:05.826855] Epoch: [4] Total time: 0:00:00 (0.3376 s / it)
+[04:55:05.827206] Averaged stats: loss_vol: 0.6946 (0.6948)  loss_near: 0.0694 (0.0695)  loss_kl: 0.0001 (0.0001)  acc: 0.4972 (0.4995)  iou: 0.3765 (0.4046)
+[04:55:06.521538] Validation:  [0/2]  eta: 0:00:00  loss_vol: 0.6930 (0.6930)  loss_near: 0.0693 (0.0693)  loss_kl: 0.0001 (0.0001)  acc: 0.5103 (0.5103)  iou: 0.5103 (0.5103)  time: 0.0898  data: 0.0629  max mem: 1634
+[04:55:06.544862] Validation:  [1/2]  eta: 0:00:00  loss_vol: 0.6930 (0.6930)  loss_near: 0.0693 (0.0693)  loss_kl: 0.0001 (0.0001)  acc: 0.5103 (0.5105)  iou: 0.5103 (0.5105)  time: 0.0562  data: 0.0322  max mem: 1634
+[04:55:06.572390] Validation: Total time: 0:00:00 (0.0706 s / it)
+[04:55:06.572672] Validation stats: loss_vol: 0.6930 (0.6930)  loss_near: 0.0693 (0.0693)  loss_kl: 0.0001 (0.0001)  acc: 0.5103 (0.5105)  iou: 0.5103 (0.5105)
+[04:55:06.573713] Training time 0:00:10

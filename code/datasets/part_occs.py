@@ -31,11 +31,13 @@ class ShapeLatentDataset(Dataset):
         filter_n_ids=None,
         get_part_points=False,
         normalize_part_points=False,
+        n_replicas=1,
     ):
         exclude_types = set(exclude_types) if exclude_types else set()
         self.shuffle_parts = shuffle_parts
         self.get_part_points = get_part_points
         self.normalize_part_points = normalize_part_points
+        self.n_replicas = n_replicas
 
         # Load file list
         file_list = "capped_list.json" if cap_parts else "full_list.json"
@@ -46,6 +48,7 @@ class ShapeLatentDataset(Dataset):
 
         # Load the split
         if split is not None:
+            self.split_name = split
             split = json.load(open(os.path.join(data_dir, "split_" + split + ".json")))
             split = set(split)
 
@@ -125,7 +128,10 @@ class ShapeLatentDataset(Dataset):
         self.rng_counter = 0
 
     def __len__(self):
-        return len(self.file_tuples)
+        if self.split_name != "train":
+            return len(self.file_tuples)
+        else:
+            return len(self.file_tuples) * self.n_replicas
 
     def __getitem__(self, idx):
         # Unpack file paths
