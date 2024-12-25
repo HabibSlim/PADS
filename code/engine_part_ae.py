@@ -39,11 +39,12 @@ def forward_pass(args, model, data_tuple, criterion):
     device = model.device
 
     # Unpack data dict
-    _, part_points, part_bbs, occ_points, occ_labels = data_tuple.values()
+    part_points, part_bbs, occ_points, occ_labels, _ = data_tuple.values()
 
     # Move data to device
     part_points = part_points.to(device, non_blocking=True)
     part_bbs = part_bbs.to(device, non_blocking=True)
+
     occ_points = occ_points.to(device, non_blocking=True)
     occ_labels = occ_labels.to(device, non_blocking=True)
 

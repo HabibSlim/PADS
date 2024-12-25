@@ -17,7 +17,9 @@ import wandb
 import util.misc as misc
 import models.part_ae as part_ae
 
-from datasets.dummy_datasets import DummyPartDataset, collate_varying_parts
+from datasets.dummy_datasets import DummyPartDataset, collate_dummy
+from datasets.part_occupancies import PartOccupancyDataset, collate
+from datasets.grouped_sampler import DistributedGroupBatchSampler
 from engine_part_ae import evaluate, train_one_epoch
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
@@ -59,6 +61,24 @@ def get_args_parser():
         action="store_true",
         default=False,
         help="Debug run with minimal number of steps and a dummy dataset",
+    )
+    parser.add_argument(
+        "--use_hdf5",
+        action="store_true",
+        default=False,
+        help="Debug run using the HDF5 dataset",
+    )
+    parser.add_argument(
+        "--n_part_points",
+        type=int,
+        default=1024,
+        help="Number of sampled points for each part",
+    )
+    parser.add_argument(
+        "--n_query_points",
+        type=int,
+        default=2048,
+        help="Number of query points for occupancy prediction",
     )
 
     # Start/End epoch
@@ -135,7 +155,7 @@ def get_args_parser():
         "--data_path",
         default="",
         type=str,
-        help="dataset path",
+        help="Path to the HDF5 dataset",
     )
 
     # Checkpointing parameters
@@ -233,7 +253,7 @@ def train_model(
 
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
-            data_loader_train.sampler.set_epoch(epoch)
+            data_loader_train.batch_sampler.set_epoch(epoch)
         train_stats = train_one_epoch(
             args=args,
             model=model,
@@ -258,7 +278,7 @@ def train_model(
             )
 
         if epoch % args.valid_step == 0 or epoch + 1 == args.epochs:
-            data_loader_val.sampler.set_epoch(epoch)
+            data_loader_val.batch_sampler.set_epoch(epoch)
             eval_stats = evaluate(
                 args=args,
                 model=model,
@@ -283,47 +303,68 @@ def init_dataloaders(args):
     num_tasks = misc.get_world_size()
     global_rank = misc.get_rank()
 
-    if args.debug_run:
+    if args.debug_run and not args.use_hdf5:
         dataset = DummyPartDataset(
-            num_samples=16,
+            batch_size=args.batch_size,
+            num_samples=512,
             max_parts=4,
             num_points=1024,
             num_occ=2048,
-            n_replicas=num_tasks,
+            num_replicas=num_tasks,
         )
         dataset_train, dataset_val = dataset, dataset
     else:
-        # TODO: Complete here.
-        pass
+        dataset_train = PartOccupancyDataset(
+            hdf5_path=args.data_path,
+            split="train",
+            num_queries=args.n_query_points,
+            num_part_points=args.n_part_points,
+            num_replicas=num_tasks,
+        )
+        dataset_val = PartOccupancyDataset(
+            hdf5_path=args.data_path,
+            split="val",
+            num_queries=args.n_query_points,
+            num_part_points=args.n_part_points,
+            num_replicas=num_tasks,
+        )
 
-    sampler_train = torch.utils.data.DistributedSampler(
-        dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
+    sampler_train = DistributedGroupBatchSampler(
+        group_ids=dataset_train.part_counts,
+        batch_size=args.batch_size,
+        num_replicas=num_tasks,
+        rank=global_rank,
+        shuffle=True,
+        seed=args.seed,
+        drop_last=True,
     )
     print("Sampler_train = %s" % str(sampler_train))
-    sampler_val = torch.utils.data.DistributedSampler(
-        dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=True
+    sampler_val = DistributedGroupBatchSampler(
+        group_ids=dataset_val.part_counts,
+        batch_size=args.batch_size,
+        num_replicas=num_tasks,
+        rank=global_rank,
+        shuffle=True,
+        seed=args.seed,
+        drop_last=True,
     )
 
     # Initialize the dataloaders
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train,
-        sampler=sampler_train,
-        batch_size=args.batch_size,
+        batch_sampler=sampler_train,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
-        drop_last=True,
         prefetch_factor=2,
-        collate_fn=collate_varying_parts,
+        collate_fn=collate,
     )
     data_loader_val = torch.utils.data.DataLoader(
         dataset_val,
-        sampler=sampler_val,
-        batch_size=args.batch_size,
+        batch_sampler=sampler_val,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
-        drop_last=True,
         prefetch_factor=2,
-        collate_fn=collate_varying_parts,
+        collate_fn=collate,
     )
 
     return global_rank, data_loader_train, data_loader_val

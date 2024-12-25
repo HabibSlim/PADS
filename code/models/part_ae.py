@@ -370,13 +370,17 @@ class PartAE(nn.Module):
         self.max_parts = max_parts
 
     def forward(self, part_points, part_bbs, queries):
+        """
+        B: Batch size
+        N: Number of parts
+        N_p: Number of points per part
+        D: Point dimension == 3
+        """
         B, N, N_p, D = part_points.shape
         B, N, K, D = part_bbs.shape
 
         # Forward all parts through the autoencoder at once
-        encoded_parts, kl = self.encoder(
-            part_points
-        )  # B x N x num_latents * latent_dim
+        encoded_parts, kl = self.encoder(part_points)  # B x N x part_latent_dim
         bb_tokens = self.bb_tokenizer(part_bbs)  # B x N x part_latent_dim
 
         # Concatenate the part latent codes with the bounding box tokens channel-wise
