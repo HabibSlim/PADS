@@ -187,6 +187,9 @@ def train_one_epoch(
                 }
             )
 
+        if args.debug_run and data_step > 10:
+            break
+
     assert data_seen, "No data seen in training loop"
 
     # Gather the stats from all processes
@@ -212,24 +215,34 @@ def train_one_epoch(
 def extract_mesh(model, data_tuple, grid_density):
     """
     Extract mesh from occupancies predictions using volume samples only.
+    Args:
+        model: The model
+        data_tuple: Dictionary containing:
+            - part_points: (B=1, N, 3) tensor of point clouds
+            - part_bbs: (B=1, P, 6) tensor of bounding boxes
+            - model_ids: List containing a single model ID
+        grid_density: Resolution of the grid
+    Returns:
+        str: Path to saved mesh file
     """
     device = model.device
 
-    # Unpack and move data to device
-    part_points, part_bbs = (
-        data_tuple["part_points"][0].unsqueeze(0),
-        data_tuple["part_bbs"][0].unsqueeze(0),
-    )
+    # Unpack and move data to device - note we expect B=1
+    part_points, part_bbs = data_tuple["part_points"], data_tuple["part_bbs"]
+    assert (
+        part_points.shape[0] == 1
+    ), f"Expected batch size 1, got {part_points.shape[0]}"
+
     if not part_points.device == device:
         part_points = part_points.to(device, non_blocking=True)
         part_bbs = part_bbs.to(device, non_blocking=True)
 
     # Generate a 3D grid of points
-    grid_queries = s2vs.get_grid(grid_density=grid_density).to(device)
+    grid_queries = s2vs.get_grid(grid_density=grid_density).to(device)  # (G^3, 3)
 
     # Forward pass
-    outputs = model(part_points, part_bbs, grid_queries)
-    outputs = outputs["logits"].squeeze()
+    outputs = model(part_points, part_bbs, grid_queries)  # Add batch dim to grid
+    outputs = outputs["logits"].squeeze(0)  # Remove batch dim from output
 
     # Extract mesh
     mesh = s2vs.reconstruct_mesh(outputs, grid_density=grid_density)
@@ -285,11 +298,34 @@ def evaluate(
     # Also extract occupancy predictions for visualization
     if global_rank == 0:
         with torch.no_grad():
-            mesh_file = extract_mesh(model, data_tuple, grid_density=args.grid_density)
-        # Log the mesh file to wandb
-        if args.debug_run:
-            mesh_file = misc.gen_dummy_mesh(mesh_file)
-        wandb.log({"mesh_gen": wandb.Object3D.from_file(open(mesh_file))})
+            # Calculate number of samples to extract (25% of batch)
+            batch_size = len(data_tuple["model_ids"])
+            num_samples = max(1, int(0.25 * batch_size))
+
+            # Extract meshes for multiple samples
+            for idx in range(num_samples):
+                # Create single-sample data dictionary, preserving batch dimension
+                sample_data = {
+                    "part_points": data_tuple["part_points"][
+                        idx : idx + 1
+                    ],  # Keep batch dim
+                    "part_bbs": data_tuple["part_bbs"][idx : idx + 1],  # Keep batch dim
+                    "model_ids": [data_tuple["model_ids"][idx]],
+                }
+                mesh_file = extract_mesh(
+                    model, sample_data, grid_density=args.grid_density
+                )
+
+                # Log the mesh file to wandb
+                if args.debug_run:
+                    mesh_file = misc.gen_dummy_mesh(mesh_file)
+                wandb.log(
+                    {
+                        f"mesh_gen_{idx}_{epoch}": wandb.Object3D.from_file(
+                            open(mesh_file)
+                        ),
+                    }
+                )
 
     # Gather the stats from all processes
     metric_logger.synchronize_between_processes()
