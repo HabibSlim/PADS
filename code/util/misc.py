@@ -1045,3 +1045,36 @@ def visualize_bounding_boxes(
         return trimesh.util.concatenate(mesh_list + bb_geometries)
 
     return mesh_list + bb_geometries
+
+
+def gen_dummy_mesh(mesh_file):
+    """
+    Generate a dummy mesh.
+    """
+    import numpy as np
+
+    # Create vertices
+    vertices = np.array(
+        [
+            [0, 0, 0],  # vertex 0
+            [1, 0, 0],  # vertex 1
+            [1, 1, 0],  # vertex 2
+            [0, 1, 0],  # vertex 3
+            [0.5, 0.5, 1],  # vertex 4 (apex)
+        ]
+    )
+
+    # Define faces using vertex indices
+    faces = np.array(
+        [
+            [0, 1, 4],  # triangle 0
+            [1, 2, 4],  # triangle 1
+            [2, 3, 4],  # triangle 2
+            [3, 0, 4],  # triangle 3
+            [0, 2, 1],  # triangle 4
+            [0, 3, 2],  # triangle 5
+        ]
+    )
+    mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
+    mesh.export(mesh_file)
+    return mesh_file

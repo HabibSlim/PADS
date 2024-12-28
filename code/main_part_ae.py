@@ -411,6 +411,7 @@ def main(args):
 
     # Start a new wandb run to track this script
     print("Global rank: ", global_rank)
+    print("World size: ", misc.get_world_size())
     if not args.eval and global_rank == 0:
         model_config = {
             "model_name": args.model_name,
@@ -466,4 +467,5 @@ if __name__ == "__main__":
     args = args.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    args.grid_density = 32 if args.debug_run else 256
     main(args)

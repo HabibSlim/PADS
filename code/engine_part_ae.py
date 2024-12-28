@@ -7,6 +7,7 @@ import sys
 
 import torch
 import util.misc as misc
+import util.s2vs as s2vs
 import util.lr_sched as lr_sched
 import wandb
 
@@ -208,6 +209,39 @@ def train_one_epoch(
 
 
 @torch.inference_mode()
+def extract_mesh(model, data_tuple, grid_density):
+    """
+    Extract mesh from occupancies predictions using volume samples only.
+    """
+    device = model.device
+
+    # Unpack and move data to device
+    part_points, part_bbs = (
+        data_tuple["part_points"][0].unsqueeze(0),
+        data_tuple["part_bbs"][0].unsqueeze(0),
+    )
+    if not part_points.device == device:
+        part_points = part_points.to(device, non_blocking=True)
+        part_bbs = part_bbs.to(device, non_blocking=True)
+
+    # Generate a 3D grid of points
+    grid_queries = s2vs.get_grid(grid_density=grid_density).to(device)
+
+    # Forward pass
+    outputs = model(part_points, part_bbs, grid_queries)
+    outputs = outputs["logits"].squeeze()
+
+    # Extract mesh
+    mesh = s2vs.reconstruct_mesh(outputs, grid_density=grid_density)
+
+    # Save mesh to /tmp/
+    mesh_file = f"/tmp/mesh_{data_tuple['model_ids'][0]}.obj"
+    mesh.export(mesh_file)
+
+    return mesh_file
+
+
+@torch.inference_mode()
 def evaluate(
     args,
     model,
@@ -247,6 +281,15 @@ def evaluate(
         data_seen = True
 
     assert data_seen, "No data seen in evaluation loop"
+
+    # Also extract occupancy predictions for visualization
+    if global_rank == 0:
+        with torch.no_grad():
+            mesh_file = extract_mesh(model, data_tuple, grid_density=args.grid_density)
+        # Log the mesh file to wandb
+        if args.debug_run:
+            mesh_file = misc.gen_dummy_mesh(mesh_file)
+        wandb.log({"mesh_gen": wandb.Object3D.from_file(open(mesh_file))})
 
     # Gather the stats from all processes
     metric_logger.synchronize_between_processes()
