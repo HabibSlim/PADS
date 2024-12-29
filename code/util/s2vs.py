@@ -39,13 +39,13 @@ def batch_slices(total, batch_size):
         start = end
 
 
-def get_grid(grid_density=128):
+def get_grid(grid_density=128, grid_range=1.0):
     """
     Get a 3D grid of points.
     """
-    x = np.linspace(-1, 1, grid_density + 1)
-    y = np.linspace(-1, 1, grid_density + 1)
-    z = np.linspace(-1, 1, grid_density + 1)
+    x = np.linspace(-grid_range, grid_range, grid_density + 1)
+    y = np.linspace(-grid_range, grid_range, grid_density + 1)
+    z = np.linspace(-grid_range, grid_range, grid_density + 1)
     xv, yv, zv = np.meshgrid(x, y, z)
     grid = (
         torch.from_numpy(np.stack([xv, yv, zv]).astype(np.float32))

@@ -313,6 +313,10 @@ def init_dataloaders(args):
             num_replicas=num_tasks,
         )
         dataset_train, dataset_val = dataset, dataset
+        print(
+            "Using DummyPartDataset with %d samples and %d parts"
+            % (len(dataset), dataset.max_parts)
+        )
     else:
         dataset_train = PartOccupancyDataset(
             hdf5_path=args.data_path,
@@ -327,6 +331,13 @@ def init_dataloaders(args):
             num_queries=args.n_query_points,
             num_part_points=args.n_part_points,
             num_replicas=num_tasks,
+        )
+        print(
+            "Using PartOccupancyDataset with %d train and %d val samples"
+            % (
+                len(dataset_train),
+                len(dataset_val),
+            )
         )
 
     sampler_train = DistributedGroupBatchSampler(

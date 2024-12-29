@@ -238,7 +238,9 @@ def extract_mesh(model, data_tuple, grid_density):
         part_bbs = part_bbs.to(device, non_blocking=True)
 
     # Generate a 3D grid of points
-    grid_queries = s2vs.get_grid(grid_density=grid_density).to(device)  # (G^3, 3)
+    grid_queries = s2vs.get_grid(grid_density=grid_density, grid_range=0.8).to(
+        device
+    )  # (G^3, 3)
 
     # Forward pass
     outputs = model(part_points, part_bbs, grid_queries)  # Add batch dim to grid

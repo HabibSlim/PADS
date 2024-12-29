@@ -18,6 +18,7 @@ class PartOccupancyDataset(Dataset):
         num_queries=2048,
         num_part_points=2048,
         num_replicas=1,
+        truncate_unit_cube=True,
     ):
         """
         Initialize the dataset by loading HDF5 matrices into memory.
@@ -28,10 +29,12 @@ class PartOccupancyDataset(Dataset):
             num_queries: Number of query points to sample (if None, uses all points)
             num_part_points: Number of points per part (if None, uses all points)
             num_replicas: Number of replicas for distributed training
+            truncate_unit_cube: Whether to filter query points to unit cube [-1/2,1/2]^3
         """
         self.num_queries = num_queries
         self.num_part_points = num_part_points
         self.num_replicas = num_replicas
+        self.truncate_unit_cube = truncate_unit_cube
 
         # Load and validate HDF5 data
         with h5py.File(hdf5_path, "r") as f:
@@ -104,9 +107,16 @@ class PartOccupancyDataset(Dataset):
                     ]
                     self.part_counts += [n_parts - 1]
 
-    def __len__(self):
-        """Return the number of samples in the dataset."""
-        return len(self.sample_configs) * self.n_replicas
+    def _filter_unit_cube(self, points, labels=None, abs_max=1.0):
+        """
+        Filter points to keep only those within the unit cube [-abs_max, abs_max]^3.
+        """
+        mask = np.all(np.abs(points) <= abs_max, axis=-1)
+        filtered_points = points[mask]
+        if labels is not None:
+            filtered_labels = labels[mask]
+            return filtered_points, filtered_labels
+        return filtered_points
 
     def _subsample_queries(self, query_points, query_labels):
         """
@@ -121,19 +131,43 @@ class PartOccupancyDataset(Dataset):
 
         # First sample near-surface points
         for i in range(4):
-            indices = np.random.choice(n_near_points, n_near_points, replace=False)
-            query_points_all += [query_points[i, indices]]
-            query_labels_all += [query_labels[i, indices]]
+            curr_points = query_points[i]
+            curr_labels = query_labels[i]
 
-        query_points_sub = np.stack(query_points_all).reshape(-1, 3)
-        query_labels_sub = np.stack(query_labels_all).reshape(-1)
+            if self.truncate_unit_cube:
+                curr_points, curr_labels = self._filter_unit_cube(
+                    curr_points, curr_labels, abs_max=0.8
+                )
+
+            indices = np.random.choice(len(curr_points), n_near_points, replace=False)
+            query_points_all.append(curr_points[indices])
+            query_labels_all.append(curr_labels[indices])
+
+        query_points_sub = np.concatenate(query_points_all)
+        query_labels_sub = np.concatenate(query_labels_all)
 
         # Then sample volume points
-        indices = np.random.choice(n_vol_points, n_vol_points, replace=False)
-        query_points = np.vstack([query_points_sub, query_points[4, indices]])
-        query_labels = np.hstack([query_labels_sub, query_labels[4, indices]])
+        curr_points = query_points[4]
+        curr_labels = query_labels[4]
+
+        if self.truncate_unit_cube:
+            curr_points, curr_labels = self._filter_unit_cube(
+                curr_points, curr_labels, abs_max=0.8
+            )
+
+        indices = np.random.choice(len(curr_points), n_vol_points, replace=False)
+        vol_points = curr_points[indices]
+        vol_labels = curr_labels[indices]
+
+        # Combine near-surface and volume points
+        query_points = np.vstack([query_points_sub, vol_points])
+        query_labels = np.hstack([query_labels_sub, vol_labels])
 
         return query_points, query_labels
+
+    def __len__(self):
+        """Return the number of samples in the dataset."""
+        return len(self.sample_configs) * self.num_replicas
 
     def __getitem__(self, idx):
         """
