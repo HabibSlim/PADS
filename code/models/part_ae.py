@@ -57,12 +57,12 @@ class KLEncoder(nn.Module):
         return next(self.parameters()).device
 
     def forward(self, pc):
-        # pc: B x N x 3
-        B, N, D = pc.shape
+        # pc: B x N_pc x 3
+        B, N_pc, D = pc.shape
 
         ###### fps
         ratio = 1.0 * self.num_latents / self.num_inputs
-        sampled_pc = fps_subsample(pc, ratio)
+        sampled_pc = fps_subsample(pc, ratio)  # B x num_latents x 3
         ######
 
         sampled_pc_embeddings = self.point_embed(sampled_pc)
@@ -80,7 +80,7 @@ class KLEncoder(nn.Module):
         logvar = self.logvar_fc(x)
 
         posterior = DiagonalGaussianDistribution(mean, logvar)
-        x = posterior.sample()
+        x = posterior.sample()  # B x num_latents x latent_dim
         kl = posterior.kl()
 
         return x, kl
@@ -118,7 +118,8 @@ class PartEncoder(nn.Module):
         x, kl = self.encoder(reshaped_pcs)
 
         output_shape = x.shape[1:]
-        return x.view(B, N, *output_shape), kl
+        x = x.view(B, N, *output_shape)  # B x N x num_latents x latent_dim
+        return x, kl
 
 
 class ShapeDecoder(nn.Module):
@@ -304,11 +305,26 @@ class LatentArrayTransformer(nn.Module):
         return x
 
 
-class PartAE(nn.Module):
+class PartLatentAggregator(nn.Module):
     """
-    Part auto-encoder supporting bounding box supervision.
+    Given a latent set of parts, aggregate them into a single latent vector.
     """
 
+    def __init__(self, input_dim, output_dim, heads=8, dim_head=64):
+        super().__init__()
+        self.part_query = nn.Parameter(torch.randn(1, 1, output_dim))
+        self.input_proj = nn.Linear(input_dim, output_dim)
+        self.attention = Attention(query_dim=output_dim, heads=heads, dim_head=dim_head)
+
+    def forward(self, x):
+        N = x.shape[0]
+        # Project input to correct dimension
+        x = self.input_proj(x)  # [N, num_latents, output_dim]
+        query = self.part_query.expand(N, -1, -1)  # [N, 1, output_dim]
+        return self.attention(query, context=x).squeeze(1)  # [N, output_dim]
+
+
+class PartAE(nn.Module):
     def __init__(
         self,
         *,
@@ -327,8 +343,8 @@ class PartAE(nn.Module):
     ):
         super().__init__()
 
-        num_latents = part_latent_dim // 8
-        latent_dim = 8
+        num_latents = part_latent_dim // 4
+        latent_dim = 4
 
         self.encoder = PartEncoder(
             embed_dim=embed_dim,
@@ -343,6 +359,13 @@ class PartAE(nn.Module):
             mlp_hidden_dim=64,
             mlp_output_dim=part_latent_dim,
             mlp_depth=3,
+        )
+
+        self.part_aggregator = PartLatentAggregator(
+            input_dim=latent_dim,
+            output_dim=part_latent_dim,
+            heads=heads,
+            dim_head=dim_head,
         )
 
         self.part_mixer = LatentArrayTransformer(
@@ -365,9 +388,9 @@ class PartAE(nn.Module):
             weight_tie_layers=weight_tie_layers,
             decoder_ff=decoder_ff,
         )
-
-        self.part_latents_proj = nn.Linear(part_latent_dim, part_latent_dim)
         self.max_parts = max_parts
+        self.num_latents = num_latents
+        self.latent_dim = latent_dim
 
     def forward(self, part_points, part_bbs, queries):
         """
@@ -383,19 +406,15 @@ class PartAE(nn.Module):
         encoded_parts, kl = self.encoder(part_points)  # B x N x part_latent_dim
         bb_tokens = self.bb_tokenizer(part_bbs)  # B x N x part_latent_dim
 
-        # Concatenate the part latent codes with the bounding box tokens channel-wise
-        encoded_parts = encoded_parts.view(B, N, -1)
-        encoded_parts = self.part_latents_proj(
-            encoded_parts
-        )  # TODO: Maybe some issues here related to permutation invariance
-        decoder_input = torch.cat([encoded_parts, bb_tokens], dim=-1)
+        # Reshape to treat B*N as batch dimension and num_latents as sequence length
+        encoded_parts = encoded_parts.view(B * N, self.num_latents, self.latent_dim)
+        encoded_parts = self.part_aggregator(encoded_parts)  # B*N, part_latent_dim
+        encoded_parts = encoded_parts.view(B, N, -1)  # B, N, part_latent_dim
 
-        # Mix the part latent codes and bounding box tokens
-        mixed_parts = self.part_mixer(decoder_input)
-
-        encoded_parts, kl = self.encoder(
-            part_points
-        )  # B x N x num_latents * latent_dim
+        decoder_input = torch.cat(
+            [encoded_parts, bb_tokens], dim=-1
+        )  # [B, N, part_latent_dim * 2]
+        mixed_parts = self.part_mixer(decoder_input)  # B, N, part_latent_dim
 
         return {"logits": self.decoder(mixed_parts, queries), "kl": kl}
 
@@ -757,6 +776,246 @@ def part_ae_d24_m16_l128():
         output_dim=1,
         num_inputs=1024,
         part_latent_dim=128,
+        heads=8,
+        dim_head=64,
+        weight_tie_layers=False,
+        decoder_ff=False,
+    )
+
+
+def part_ae_d8_m8_l256():
+    """
+    decoder_depth=8, mixer_depth=8, part_latent_dim=256
+    """
+    return PartAE(
+        max_parts=16,
+        decoder_depth=8,
+        mixer_depth=8,
+        embed_dim=512,
+        queries_dim=512,
+        output_dim=1,
+        num_inputs=1024,
+        part_latent_dim=256,
+        heads=8,
+        dim_head=64,
+        weight_tie_layers=False,
+        decoder_ff=False,
+    )
+
+
+def part_ae_d8_m8_l512():
+    """
+    decoder_depth=8, mixer_depth=8, part_latent_dim=512
+    """
+    return PartAE(
+        max_parts=16,
+        decoder_depth=8,
+        mixer_depth=8,
+        embed_dim=512,
+        queries_dim=512,
+        output_dim=1,
+        num_inputs=1024,
+        part_latent_dim=512,
+        heads=8,
+        dim_head=64,
+        weight_tie_layers=False,
+        decoder_ff=False,
+    )
+
+
+def part_ae_d8_m16_l256():
+    """
+    decoder_depth=8, mixer_depth=16, part_latent_dim=256
+    """
+    return PartAE(
+        max_parts=16,
+        decoder_depth=8,
+        mixer_depth=16,
+        embed_dim=512,
+        queries_dim=512,
+        output_dim=1,
+        num_inputs=1024,
+        part_latent_dim=256,
+        heads=8,
+        dim_head=64,
+        weight_tie_layers=False,
+        decoder_ff=False,
+    )
+
+
+def part_ae_d8_m16_l512():
+    """
+    decoder_depth=8, mixer_depth=16, part_latent_dim=512
+    """
+    return PartAE(
+        max_parts=16,
+        decoder_depth=8,
+        mixer_depth=16,
+        embed_dim=512,
+        queries_dim=512,
+        output_dim=1,
+        num_inputs=1024,
+        part_latent_dim=512,
+        heads=8,
+        dim_head=64,
+        weight_tie_layers=False,
+        decoder_ff=False,
+    )
+
+
+def part_ae_d16_m8_l256():
+    """
+    decoder_depth=16, mixer_depth=8, part_latent_dim=256
+    """
+    return PartAE(
+        max_parts=16,
+        decoder_depth=16,
+        mixer_depth=8,
+        embed_dim=512,
+        queries_dim=512,
+        output_dim=1,
+        num_inputs=1024,
+        part_latent_dim=256,
+        heads=8,
+        dim_head=64,
+        weight_tie_layers=False,
+        decoder_ff=False,
+    )
+
+
+def part_ae_d16_m8_l512():
+    """
+    decoder_depth=16, mixer_depth=8, part_latent_dim=512
+    """
+    return PartAE(
+        max_parts=16,
+        decoder_depth=16,
+        mixer_depth=8,
+        embed_dim=512,
+        queries_dim=512,
+        output_dim=1,
+        num_inputs=1024,
+        part_latent_dim=512,
+        heads=8,
+        dim_head=64,
+        weight_tie_layers=False,
+        decoder_ff=False,
+    )
+
+
+def part_ae_d16_m16_l256():
+    """
+    decoder_depth=16, mixer_depth=16, part_latent_dim=256
+    """
+    return PartAE(
+        max_parts=16,
+        decoder_depth=16,
+        mixer_depth=16,
+        embed_dim=512,
+        queries_dim=512,
+        output_dim=1,
+        num_inputs=1024,
+        part_latent_dim=256,
+        heads=8,
+        dim_head=64,
+        weight_tie_layers=False,
+        decoder_ff=False,
+    )
+
+
+def part_ae_d16_m16_l512():
+    """
+    decoder_depth=16, mixer_depth=16, part_latent_dim=512
+    """
+    return PartAE(
+        max_parts=16,
+        decoder_depth=16,
+        mixer_depth=16,
+        embed_dim=512,
+        queries_dim=512,
+        output_dim=1,
+        num_inputs=1024,
+        part_latent_dim=512,
+        heads=8,
+        dim_head=64,
+        weight_tie_layers=False,
+        decoder_ff=False,
+    )
+
+
+def part_ae_d24_m8_l256():
+    """
+    decoder_depth=24, mixer_depth=8, part_latent_dim=256
+    """
+    return PartAE(
+        max_parts=16,
+        decoder_depth=24,
+        mixer_depth=8,
+        embed_dim=512,
+        queries_dim=512,
+        output_dim=1,
+        num_inputs=1024,
+        part_latent_dim=256,
+        heads=8,
+        dim_head=64,
+        weight_tie_layers=False,
+        decoder_ff=False,
+    )
+
+
+def part_ae_d24_m8_l512():
+    """
+    decoder_depth=24, mixer_depth=8, part_latent_dim=512
+    """
+    return PartAE(
+        max_parts=16,
+        decoder_depth=24,
+        mixer_depth=8,
+        embed_dim=512,
+        queries_dim=512,
+        output_dim=1,
+        num_inputs=1024,
+        part_latent_dim=512,
+        heads=8,
+        dim_head=64,
+        weight_tie_layers=False,
+        decoder_ff=False,
+    )
+
+
+def part_ae_d24_m16_l256():
+    """
+    decoder_depth=24, mixer_depth=16, part_latent_dim=256
+    """
+    return PartAE(
+        max_parts=16,
+        decoder_depth=24,
+        mixer_depth=16,
+        embed_dim=512,
+        queries_dim=512,
+        output_dim=1,
+        num_inputs=1024,
+        part_latent_dim=256,
+        heads=8,
+        dim_head=64,
+        weight_tie_layers=False,
+        decoder_ff=False,
+    )
+
+
+def part_ae_d24_m16_l512():
+    """
+    decoder_depth=24, mixer_depth=16, part_latent_dim=512
+    """
+    return PartAE(
+        max_parts=16,
+        decoder_depth=24,
+        mixer_depth=16,
+        embed_dim=512,
+        queries_dim=512,
+        output_dim=1,
+        num_inputs=1024,
+        part_latent_dim=512,
         heads=8,
         dim_head=64,
         weight_tie_layers=False,
