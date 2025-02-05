@@ -313,6 +313,7 @@ class PartLatentAggregator(nn.Module):
     def __init__(self, input_dim, output_dim, heads=8, dim_head=64):
         super().__init__()
         self.part_query = nn.Parameter(torch.randn(1, 1, output_dim))
+        nn.init.kaiming_normal_(self.part_query)
         self.input_proj = nn.Linear(input_dim, output_dim)
         self.attention = Attention(query_dim=output_dim, heads=heads, dim_head=dim_head)
 
@@ -423,7 +424,7 @@ class PartAE(nn.Module):
         return next(self.parameters()).device
 
 
-def part_ae_d8_m8_l32():
+def part_ae_d8_m8_l32(args):
     """
     decoder_depth=8, mixer_depth=8, part_latent_dim=32
     """
@@ -434,7 +435,7 @@ def part_ae_d8_m8_l32():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=32,
         heads=8,
         dim_head=64,
@@ -443,7 +444,7 @@ def part_ae_d8_m8_l32():
     )
 
 
-def part_ae_d8_m8_l64():
+def part_ae_d8_m8_l64(args):
     """
     decoder_depth=8, mixer_depth=8, part_latent_dim=64
     """
@@ -454,7 +455,7 @@ def part_ae_d8_m8_l64():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=64,
         heads=8,
         dim_head=64,
@@ -463,7 +464,7 @@ def part_ae_d8_m8_l64():
     )
 
 
-def part_ae_d8_m8_l128():
+def part_ae_d8_m8_l128(args):
     """
     decoder_depth=8, mixer_depth=8, part_latent_dim=128
     """
@@ -474,7 +475,7 @@ def part_ae_d8_m8_l128():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=128,
         heads=8,
         dim_head=64,
@@ -483,7 +484,7 @@ def part_ae_d8_m8_l128():
     )
 
 
-def part_ae_d8_m16_l32():
+def part_ae_d8_m16_l32(args):
     """
     decoder_depth=8, mixer_depth=16, part_latent_dim=32
     """
@@ -494,7 +495,7 @@ def part_ae_d8_m16_l32():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=32,
         heads=8,
         dim_head=64,
@@ -503,7 +504,7 @@ def part_ae_d8_m16_l32():
     )
 
 
-def part_ae_d8_m16_l64():
+def part_ae_d8_m16_l64(args):
     """
     decoder_depth=8, mixer_depth=16, part_latent_dim=64
     """
@@ -514,7 +515,7 @@ def part_ae_d8_m16_l64():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=64,
         heads=8,
         dim_head=64,
@@ -523,7 +524,7 @@ def part_ae_d8_m16_l64():
     )
 
 
-def part_ae_d8_m16_l128():
+def part_ae_d8_m16_l128(args):
     """
     decoder_depth=8, mixer_depth=16, part_latent_dim=128
     """
@@ -534,7 +535,7 @@ def part_ae_d8_m16_l128():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=128,
         heads=8,
         dim_head=64,
@@ -543,7 +544,7 @@ def part_ae_d8_m16_l128():
     )
 
 
-def part_ae_d16_m8_l32():
+def part_ae_d16_m8_l32(args):
     """
     decoder_depth=16, mixer_depth=8, part_latent_dim=32
     """
@@ -554,7 +555,7 @@ def part_ae_d16_m8_l32():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=32,
         heads=8,
         dim_head=64,
@@ -563,7 +564,7 @@ def part_ae_d16_m8_l32():
     )
 
 
-def part_ae_d16_m8_l64():
+def part_ae_d16_m8_l64(args):
     """
     decoder_depth=16, mixer_depth=8, part_latent_dim=64
     """
@@ -574,7 +575,7 @@ def part_ae_d16_m8_l64():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=64,
         heads=8,
         dim_head=64,
@@ -583,7 +584,7 @@ def part_ae_d16_m8_l64():
     )
 
 
-def part_ae_d16_m8_l128():
+def part_ae_d16_m8_l128(args):
     """
     decoder_depth=16, mixer_depth=8, part_latent_dim=128
     """
@@ -594,7 +595,7 @@ def part_ae_d16_m8_l128():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=128,
         heads=8,
         dim_head=64,
@@ -603,7 +604,7 @@ def part_ae_d16_m8_l128():
     )
 
 
-def part_ae_d16_m16_l32():
+def part_ae_d16_m16_l32(args):
     """
     decoder_depth=16, mixer_depth=16, part_latent_dim=32
     """
@@ -614,7 +615,7 @@ def part_ae_d16_m16_l32():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=32,
         heads=8,
         dim_head=64,
@@ -623,7 +624,7 @@ def part_ae_d16_m16_l32():
     )
 
 
-def part_ae_d16_m16_l64():
+def part_ae_d16_m16_l64(args):
     """
     decoder_depth=16, mixer_depth=16, part_latent_dim=64
     """
@@ -634,7 +635,7 @@ def part_ae_d16_m16_l64():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=64,
         heads=8,
         dim_head=64,
@@ -643,7 +644,7 @@ def part_ae_d16_m16_l64():
     )
 
 
-def part_ae_d16_m16_l128():
+def part_ae_d16_m16_l128(args):
     """
     decoder_depth=16, mixer_depth=16, part_latent_dim=128
     """
@@ -654,7 +655,7 @@ def part_ae_d16_m16_l128():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=128,
         heads=8,
         dim_head=64,
@@ -663,7 +664,7 @@ def part_ae_d16_m16_l128():
     )
 
 
-def part_ae_d24_m8_l32():
+def part_ae_d24_m8_l32(args):
     """
     decoder_depth=24, mixer_depth=8, part_latent_dim=32
     """
@@ -674,7 +675,7 @@ def part_ae_d24_m8_l32():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=32,
         heads=8,
         dim_head=64,
@@ -683,7 +684,7 @@ def part_ae_d24_m8_l32():
     )
 
 
-def part_ae_d24_m8_l64():
+def part_ae_d24_m8_l64(args):
     """
     decoder_depth=24, mixer_depth=8, part_latent_dim=64
     """
@@ -694,7 +695,7 @@ def part_ae_d24_m8_l64():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=64,
         heads=8,
         dim_head=64,
@@ -703,7 +704,7 @@ def part_ae_d24_m8_l64():
     )
 
 
-def part_ae_d24_m8_l128():
+def part_ae_d24_m8_l128(args):
     """
     decoder_depth=24, mixer_depth=8, part_latent_dim=128
     """
@@ -714,7 +715,7 @@ def part_ae_d24_m8_l128():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=128,
         heads=8,
         dim_head=64,
@@ -723,7 +724,7 @@ def part_ae_d24_m8_l128():
     )
 
 
-def part_ae_d24_m16_l32():
+def part_ae_d24_m16_l32(args):
     """
     decoder_depth=24, mixer_depth=16, part_latent_dim=32
     """
@@ -734,7 +735,7 @@ def part_ae_d24_m16_l32():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=32,
         heads=8,
         dim_head=64,
@@ -743,7 +744,7 @@ def part_ae_d24_m16_l32():
     )
 
 
-def part_ae_d24_m16_l64():
+def part_ae_d24_m16_l64(args):
     """
     decoder_depth=24, mixer_depth=16, part_latent_dim=64
     """
@@ -754,7 +755,7 @@ def part_ae_d24_m16_l64():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=64,
         heads=8,
         dim_head=64,
@@ -763,7 +764,7 @@ def part_ae_d24_m16_l64():
     )
 
 
-def part_ae_d24_m16_l128():
+def part_ae_d24_m16_l128(args):
     """
     decoder_depth=24, mixer_depth=16, part_latent_dim=128
     """
@@ -774,7 +775,7 @@ def part_ae_d24_m16_l128():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=128,
         heads=8,
         dim_head=64,
@@ -783,7 +784,7 @@ def part_ae_d24_m16_l128():
     )
 
 
-def part_ae_d8_m8_l256():
+def part_ae_d8_m8_l256(args):
     """
     decoder_depth=8, mixer_depth=8, part_latent_dim=256
     """
@@ -794,7 +795,7 @@ def part_ae_d8_m8_l256():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=256,
         heads=8,
         dim_head=64,
@@ -803,7 +804,7 @@ def part_ae_d8_m8_l256():
     )
 
 
-def part_ae_d8_m8_l512():
+def part_ae_d8_m8_l512(args):
     """
     decoder_depth=8, mixer_depth=8, part_latent_dim=512
     """
@@ -814,7 +815,7 @@ def part_ae_d8_m8_l512():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=512,
         heads=8,
         dim_head=64,
@@ -823,7 +824,7 @@ def part_ae_d8_m8_l512():
     )
 
 
-def part_ae_d8_m16_l256():
+def part_ae_d8_m16_l256(args):
     """
     decoder_depth=8, mixer_depth=16, part_latent_dim=256
     """
@@ -834,7 +835,7 @@ def part_ae_d8_m16_l256():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=256,
         heads=8,
         dim_head=64,
@@ -843,7 +844,7 @@ def part_ae_d8_m16_l256():
     )
 
 
-def part_ae_d8_m16_l512():
+def part_ae_d8_m16_l512(args):
     """
     decoder_depth=8, mixer_depth=16, part_latent_dim=512
     """
@@ -854,7 +855,7 @@ def part_ae_d8_m16_l512():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=512,
         heads=8,
         dim_head=64,
@@ -863,7 +864,7 @@ def part_ae_d8_m16_l512():
     )
 
 
-def part_ae_d16_m8_l256():
+def part_ae_d16_m8_l256(args):
     """
     decoder_depth=16, mixer_depth=8, part_latent_dim=256
     """
@@ -874,7 +875,7 @@ def part_ae_d16_m8_l256():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=256,
         heads=8,
         dim_head=64,
@@ -883,7 +884,7 @@ def part_ae_d16_m8_l256():
     )
 
 
-def part_ae_d16_m8_l512():
+def part_ae_d16_m8_l512(args):
     """
     decoder_depth=16, mixer_depth=8, part_latent_dim=512
     """
@@ -894,7 +895,7 @@ def part_ae_d16_m8_l512():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=512,
         heads=8,
         dim_head=64,
@@ -903,7 +904,7 @@ def part_ae_d16_m8_l512():
     )
 
 
-def part_ae_d16_m16_l256():
+def part_ae_d16_m16_l256(args):
     """
     decoder_depth=16, mixer_depth=16, part_latent_dim=256
     """
@@ -914,7 +915,7 @@ def part_ae_d16_m16_l256():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=256,
         heads=8,
         dim_head=64,
@@ -923,7 +924,7 @@ def part_ae_d16_m16_l256():
     )
 
 
-def part_ae_d16_m16_l512():
+def part_ae_d16_m16_l512(args):
     """
     decoder_depth=16, mixer_depth=16, part_latent_dim=512
     """
@@ -934,7 +935,7 @@ def part_ae_d16_m16_l512():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=512,
         heads=8,
         dim_head=64,
@@ -943,7 +944,7 @@ def part_ae_d16_m16_l512():
     )
 
 
-def part_ae_d24_m8_l256():
+def part_ae_d24_m8_l256(args):
     """
     decoder_depth=24, mixer_depth=8, part_latent_dim=256
     """
@@ -954,7 +955,7 @@ def part_ae_d24_m8_l256():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=256,
         heads=8,
         dim_head=64,
@@ -963,7 +964,7 @@ def part_ae_d24_m8_l256():
     )
 
 
-def part_ae_d24_m8_l512():
+def part_ae_d24_m8_l512(args):
     """
     decoder_depth=24, mixer_depth=8, part_latent_dim=512
     """
@@ -974,7 +975,7 @@ def part_ae_d24_m8_l512():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=512,
         heads=8,
         dim_head=64,
@@ -983,7 +984,7 @@ def part_ae_d24_m8_l512():
     )
 
 
-def part_ae_d24_m16_l256():
+def part_ae_d24_m16_l256(args):
     """
     decoder_depth=24, mixer_depth=16, part_latent_dim=256
     """
@@ -994,7 +995,7 @@ def part_ae_d24_m16_l256():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=256,
         heads=8,
         dim_head=64,
@@ -1003,7 +1004,7 @@ def part_ae_d24_m16_l256():
     )
 
 
-def part_ae_d24_m16_l512():
+def part_ae_d24_m16_l512(args):
     """
     decoder_depth=24, mixer_depth=16, part_latent_dim=512
     """
@@ -1014,7 +1015,7 @@ def part_ae_d24_m16_l512():
         embed_dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=1024,
+        num_inputs=args.n_part_points,
         part_latent_dim=512,
         heads=8,
         dim_head=64,

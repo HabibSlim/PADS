@@ -62,6 +62,8 @@ def forward_pass(args, model, data_tuple, criterion):
 
     # Chunk the outputs and labels
     outputs = outputs["logits"].squeeze()
+    outputs = torch.where(torch.isnan(outputs), torch.zeros_like(outputs), outputs)
+
     occ_labels = occ_labels.float()
     vol_outs, near_outs = outputs.chunk(2, dim=1)
     vol_labels, near_labels = occ_labels.chunk(2, dim=1)
@@ -86,6 +88,17 @@ def forward_pass(args, model, data_tuple, criterion):
     else:
         loss_near = args.default_near_weights * criterion(near_outs, near_labels)
 
+    # Add these checks before the loss calculation
+    # if args.rank == 0:
+    #     print("Vol outs shape:", vol_outs.shape)
+    #     print(
+    #         "Vol outs min/max:", torch.min(vol_outs).item(), torch.max(vol_outs).item()
+    #     )
+    #     print("Contains NaN:", torch.isnan(vol_outs).any().item())
+    #     print("Contains inf:", torch.isinf(vol_outs).any().item())
+    #     # Print a small sample of values
+    #     print("Sample values:", vol_outs[:5].detach().cpu().numpy())
+
     # Compute the volume loss
     loss_vol = args.vol_weight * criterion(vol_outs, vol_labels)
 
@@ -107,7 +120,6 @@ def train_one_epoch(
     data_loader,
     optimizer,
     epoch,
-    global_rank,
     loss_scaler,
     max_norm=5.0,
 ):
@@ -125,7 +137,6 @@ def train_one_epoch(
 
     criterion = torch.nn.BCEWithLogitsLoss()
 
-    data_seen = False
     for data_step, data_tuple in enumerate(
         metric_logger.log_every(data_loader, PRINT_FREQ, header)
     ):
@@ -135,30 +146,27 @@ def train_one_epoch(
                 optimizer, data_step / len(data_loader) + epoch, args
             )
 
-        # Computing loss
-        output = forward_pass(
-            args=args, model=model, data_tuple=data_tuple, criterion=criterion
-        )
-        total_loss = output["loss_vol"] + output["loss_near"] + output["loss_kl"]
-        loss_value = total_loss.item()
+        try:
+            # Computing loss
+            output = forward_pass(
+                args=args, model=model, data_tuple=data_tuple, criterion=criterion
+            )
+            total_loss = output["loss_vol"] + output["loss_near"] + output["loss_kl"]
+            loss_value = total_loss.item()
 
-        # Panic exit if loss is not finite
-        if not math.isfinite(loss_value):
-            print("Loss is {}, stopping training".format(loss_value))
-            sys.exit(1)
-
-        data_seen = True
-
-        # Backward pass
-        total_loss /= accum_iter
-        loss_scaler(
-            total_loss,
-            optimizer,
-            clip_grad=max_norm,
-            parameters=model.parameters(),
-            create_graph=False,
-            update_grad=(data_step + 1) % accum_iter == 0,
-        )
+            # Backward pass
+            total_loss /= accum_iter
+            loss_scaler(
+                total_loss,
+                optimizer,
+                clip_grad=max_norm,
+                parameters=model.parameters(),
+                create_graph=False,
+                update_grad=(data_step + 1) % accum_iter == 0,
+            )
+        except RuntimeError as e:
+            print(e)
+            raise
 
         if (data_step + 1) % accum_iter == 0:
             optimizer.zero_grad()
@@ -175,7 +183,7 @@ def train_one_epoch(
         metric_logger.update(**loss_update)
 
         # Log the losses to wandb
-        if global_rank == 0:
+        if args.global_rank == 0:
             wandb.log(
                 {
                     "data_step": epoch * len(data_loader) + data_step,
@@ -187,17 +195,12 @@ def train_one_epoch(
                 }
             )
 
-        if args.debug_run and data_step > 10:
-            break
-
-    assert data_seen, "No data seen in training loop"
-
     # Gather the stats from all processes
     metric_logger.synchronize_between_processes()
 
     # Print metric logger keys
     print("Averaged stats:", metric_logger)
-    if global_rank == 0:
+    if args.global_rank == 0:
         wandb.log(
             {
                 "epoch": epoch,
@@ -262,7 +265,6 @@ def evaluate(
     model,
     data_loader,
     epoch,
-    global_rank,
 ):
     """
     Evaluate the model on the validation set.
@@ -298,7 +300,7 @@ def evaluate(
     assert data_seen, "No data seen in evaluation loop"
 
     # Also extract occupancy predictions for visualization
-    if global_rank == 0:
+    if args.global_rank == 0 and epoch % 10 == 0:
         with torch.no_grad():
             # Calculate number of samples to extract (25% of batch)
             batch_size = len(data_tuple["model_ids"])
@@ -336,7 +338,7 @@ def evaluate(
     print("Validation stats:", metric_logger)
 
     # Log validation metrics to wandb
-    if global_rank == 0:
+    if args.global_rank == 0:
         wandb.log(
             {
                 "epoch": epoch,

@@ -2,6 +2,7 @@ import h5py
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+import torch.distributed as dist
 
 
 class PartOccupancyDataset(Dataset):
@@ -13,11 +14,10 @@ class PartOccupancyDataset(Dataset):
 
     def __init__(
         self,
+        rank,
         hdf5_path,
-        split="train",
         num_queries=2048,
         num_part_points=2048,
-        num_replicas=1,
         truncate_unit_cube=True,
     ):
         """
@@ -25,33 +25,22 @@ class PartOccupancyDataset(Dataset):
 
         Args:
             hdf5_path: Path to the HDF5 file containing the dataset
-            split: Dataset split ('train', 'val', 'test')
             num_queries: Number of query points to sample (if None, uses all points)
             num_part_points: Number of points per part (if None, uses all points)
-            num_replicas: Number of replicas for distributed training
             truncate_unit_cube: Whether to filter query points to unit cube [-1/2,1/2]^3
         """
+
+        # Initialize base attributes
+        self.rank = rank
         self.num_queries = num_queries
         self.num_part_points = num_part_points
-        self.num_replicas = num_replicas
         self.truncate_unit_cube = truncate_unit_cube
 
         # Load and validate HDF5 data
-        with h5py.File(hdf5_path, "r") as f:
-            # Verify required datasets exist
-            required_keys = [
-                "model_ids",
-                "part_slices",
-                "part_drops",
-                "part_points_matrix",
-                "part_bbs_matrix",
-                "query_points_matrix",
-                "query_labels_matrix",
-            ]
-            missing_keys = [key for key in required_keys if key not in f]
-            if missing_keys:
-                raise ValueError(f"Missing required datasets: {missing_keys}")
+        print("Loading HDF5 data to memory...")
+        print()
 
+        with h5py.File(hdf5_path, "r") as f:
             # Load data into memory
             self.model_ids = f["model_ids"][:].astype("U")
             self.part_slices = f["part_slices"][:]
@@ -61,17 +50,50 @@ class PartOccupancyDataset(Dataset):
             self.query_points = f["query_points_matrix"][:]
             self.query_labels = f["query_labels_matrix"][:]
 
-            # Validate dimensions
-            n_models = len(self.model_ids)
-            total_configs = self.query_points.shape[0]
-
-            expected_configs = n_models * (self.MAX_PART_DROP + 1)
+        print(" Done.")
 
         # Create sample configurations
-        self.sample_configs = []
+        self._create_sample_config()
 
+    def _get_nan_model_indices(self):
+        """
+        Returns indices of models that contain NaN values in their part points.
+
+        Returns:
+            set: Set of model indices containing NaN values
+        """
+        # Find parts with NaN values
+        nan_mask = np.isnan(self.part_points).any(axis=(1, 2))
+        nan_part_indices = np.where(nan_mask)[0]
+
+        if len(nan_part_indices) == 0:
+            return set()
+
+        # Find affected models by checking part ranges
+        affected_models = set()
+        for model_idx in range(len(self.model_ids)):
+            start = self.part_slices[model_idx]
+            end = self.part_slices[model_idx + 1]
+            if np.any(nan_mask[start:end]):
+                affected_models.add(model_idx)
+
+        return affected_models
+
+    def _create_sample_config(self):
+        """
+        Creating sample configurations while excluding models with NaN values.
+        """
+        nan_indices = self._get_nan_model_indices()
+        if len(nan_indices) > 0 and self.rank == 0:
+            print(f"Excluding {len(nan_indices)} models with NaN part pointclouds")
+
+        self.sample_configs = []
         self.part_counts = []
-        for model_idx, model_id in enumerate(self.model_ids):
+
+        for model_idx, _ in enumerate(self.model_ids):
+            if model_idx in nan_indices:
+                continue
+
             # Get part information
             start_idx = self.part_slices[model_idx]
             end_idx = self.part_slices[model_idx + 1]
@@ -166,8 +188,7 @@ class PartOccupancyDataset(Dataset):
         return query_points, query_labels
 
     def __len__(self):
-        """Return the number of samples in the dataset."""
-        return len(self.sample_configs) * self.num_replicas
+        return len(self.sample_configs)
 
     def __getitem__(self, idx):
         """
@@ -223,6 +244,69 @@ class PartOccupancyDataset(Dataset):
             "query_labels": torch.from_numpy(query_labels).float(),
             "model_id": self.model_ids[config["model_idx"]],
         }
+
+
+class ShardedPartOccupancyDataset(PartOccupancyDataset):
+    """
+    Sharded version of PartOccupancyDataset that only loads a portion of the data
+    based on the process rank.
+    """
+
+    def __init__(
+        self,
+        hdf5_path,
+        rank,
+        world_size,
+        num_queries=2048,
+        num_part_points=2048,
+        truncate_unit_cube=True,
+    ):
+
+        # Initialize base attributes
+        self.rank = rank
+        self.num_queries = num_queries
+        self.num_part_points = num_part_points
+        self.truncate_unit_cube = truncate_unit_cube
+
+        # Load and validate HDF5 data
+        if rank == 0:
+            print("Loading HDF5 data to memory...")
+            print()
+
+        with h5py.File(hdf5_path, "r") as f:
+            # Calculate model range for this shard
+            total_models = len(f["model_ids"])
+            models_per_shard = (total_models + world_size - 1) // world_size
+            start_model = rank * models_per_shard
+            end_model = min(start_model + models_per_shard, total_models)
+
+            if start_model >= total_models:
+                raise ValueError(f"Rank {rank} has no data to process")
+
+            self.model_ids = f["model_ids"][start_model:end_model].astype("U")
+            self.part_slices = f["part_slices"][start_model : end_model + 1]
+            self.part_drops = f["part_drops"][start_model:end_model]
+
+            # Load part data
+            part_start = self.part_slices[0]
+            part_end = self.part_slices[-1]
+            self.part_points = f["part_points_matrix"][part_start:part_end]
+            self.part_bbs = f["part_bbs_matrix"][part_start:part_end]
+
+            # Make part slices local to this shard
+            self.part_slices = self.part_slices - part_start
+
+            # Load query data
+            query_start = start_model * (self.MAX_PART_DROP + 1)
+            query_end = end_model * (self.MAX_PART_DROP + 1)
+            self.query_points = f["query_points_matrix"][query_start:query_end]
+            self.query_labels = f["query_labels_matrix"][query_start:query_end]
+
+        if rank == 0:
+            print("Done.")
+
+        # Create sample configurations
+        self._create_sample_config()
 
 
 def collate(batch):

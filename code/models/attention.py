@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from timm.models.layers import DropPath
+from timm.layers import DropPath
 from torch import einsum, nn
 from util.misc import default, zero_module
 

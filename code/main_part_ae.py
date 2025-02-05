@@ -5,7 +5,9 @@ Main training script for the part-aware autoencoder model.
 import argparse
 import datetime
 import json
+import logging
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -18,12 +20,23 @@ import util.misc as misc
 import models.part_ae as part_ae
 
 from datasets.dummy_datasets import DummyPartDataset, collate_dummy
-from datasets.part_occupancies import PartOccupancyDataset, collate
-from datasets.grouped_sampler import DistributedGroupBatchSampler
+from datasets.part_occupancies import (
+    PartOccupancyDataset,
+    ShardedPartOccupancyDataset,
+    collate,
+)
+from datasets.grouped_sampler import (
+    DistributedGroupBatchSampler,
+    ShardedGroupBatchSampler,
+)
 from engine_part_ae import evaluate, train_one_epoch
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
+from util.monitors import ActivationMonitor, GradientMonitor
 
-torch.set_num_threads(8)
+# torch.set_num_threads(8)
+# torch.set_float32_matmul_precision("low")
+
+sys.stdout.reconfigure(line_buffering=True)
 
 
 def get_args_parser():
@@ -61,6 +74,12 @@ def get_args_parser():
         action="store_true",
         default=False,
         help="Debug run with minimal number of steps and a dummy dataset",
+    )
+    parser.add_argument(
+        "--gradient_monitoring",
+        action="store_true",
+        default=False,
+        help="Use gradient monitoring for debugging",
     )
     parser.add_argument(
         "--use_hdf5",
@@ -193,7 +212,7 @@ def get_args_parser():
         default=False,
         help="Enabling distributed evaluation (recommended during training for faster monitor",
     )
-    parser.add_argument("--num_workers", default=60, type=int)
+    parser.add_argument("--num_workers", default=4, type=int)
     parser.add_argument(
         "--pin_mem",
         action="store_true",
@@ -239,7 +258,6 @@ def train_model(
     data_loader_train,
     data_loader_val,
     optimizer,
-    global_rank,
     loss_scaler,
 ):
     """
@@ -260,11 +278,10 @@ def train_model(
             data_loader=data_loader_train,
             optimizer=optimizer,
             epoch=epoch,
-            global_rank=global_rank,
             loss_scaler=loss_scaler,
             max_norm=args.clip_grad,
         )
-        if global_rank == 0 and (
+        if args.global_rank == 0 and (
             args.output_dir
             and (epoch % args.save_every_n == 0 or epoch + 1 == args.epochs)
         ):
@@ -284,7 +301,6 @@ def train_model(
                 model=model,
                 data_loader=data_loader_val,
                 epoch=epoch,
-                global_rank=global_rank,
             )
 
     total_time = time.time() - start_time
@@ -292,7 +308,7 @@ def train_model(
     print("Training time {}".format(total_time_str))
 
     # Finishing wandb run
-    if global_rank == 0:
+    if args.global_rank == 0:
         wandb.finish()
 
 
@@ -300,61 +316,46 @@ def init_dataloaders(args):
     """
     Initialize the data loaders.
     """
-    num_tasks = misc.get_world_size()
-    global_rank = misc.get_rank()
-
     if args.debug_run and not args.use_hdf5:
         dataset = DummyPartDataset(
-            batch_size=args.batch_size,
-            num_samples=512,
-            max_parts=4,
-            num_points=1024,
-            num_occ=2048,
-            num_replicas=num_tasks,
+            num_samples=169958,
+            num_part_points=args.n_part_points,
+            num_queries=args.n_query_points,
+            num_replicas=args.num_tasks,
+            max_parts=25,
+            full_parts=True,
         )
-        dataset_train, dataset_val = dataset, dataset
         print(
             "Using DummyPartDataset with %d samples and %d parts"
             % (len(dataset), dataset.max_parts)
         )
     else:
-        dataset_train = PartOccupancyDataset(
+        dataset = ShardedPartOccupancyDataset(
             hdf5_path=args.data_path,
-            split="train",
+            rank=args.global_rank,
+            world_size=args.num_tasks,
             num_queries=args.n_query_points,
             num_part_points=args.n_part_points,
-            num_replicas=num_tasks,
         )
-        dataset_val = PartOccupancyDataset(
-            hdf5_path=args.data_path,
-            split="val",
-            num_queries=args.n_query_points,
-            num_part_points=args.n_part_points,
-            num_replicas=num_tasks,
-        )
-        print(
-            "Using PartOccupancyDataset with %d train and %d val samples"
-            % (
-                len(dataset_train),
-                len(dataset_val),
-            )
-        )
+        print("Using PartOccupancyDataset with %d train samples" % len(dataset))
 
-    sampler_train = DistributedGroupBatchSampler(
-        group_ids=dataset_train.part_counts,
+    # Initialize the samplers
+    sampler_train = ShardedGroupBatchSampler(
+        group_ids=dataset.part_counts,
+        split="train",
         batch_size=args.batch_size,
-        num_replicas=num_tasks,
-        rank=global_rank,
+        num_replicas=args.num_tasks,
+        rank=args.global_rank,
         shuffle=True,
         seed=args.seed,
         drop_last=True,
     )
-    print("Sampler_train = %s" % str(sampler_train))
-    sampler_val = DistributedGroupBatchSampler(
-        group_ids=dataset_val.part_counts,
+    sampler_val = ShardedGroupBatchSampler(
+        group_ids=dataset.part_counts,
+        split="val",
         batch_size=args.batch_size,
-        num_replicas=num_tasks,
-        rank=global_rank,
+        num_replicas=args.num_tasks,
+        rank=args.global_rank,
         shuffle=True,
         seed=args.seed,
         drop_last=True,
@@ -362,7 +363,7 @@ def init_dataloaders(args):
 
     # Initialize the dataloaders
     data_loader_train = torch.utils.data.DataLoader(
-        dataset_train,
+        dataset,
         batch_sampler=sampler_train,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
@@ -370,7 +371,7 @@ def init_dataloaders(args):
         collate_fn=collate,
     )
     data_loader_val = torch.utils.data.DataLoader(
-        dataset_val,
+        dataset,
         batch_sampler=sampler_val,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
@@ -378,7 +379,7 @@ def init_dataloaders(args):
         collate_fn=collate,
     )
 
-    return global_rank, data_loader_train, data_loader_val
+    return data_loader_train, data_loader_val
 
 
 def main(args):
@@ -388,42 +389,17 @@ def main(args):
     misc.init_distributed_mode(args)
     device = torch.device(args.device)
 
+    # Fetching distributed learning info
+    args.num_tasks = misc.get_world_size()
+    args.global_rank = misc.get_rank()
+
     # Fix the seed for reproducibility
     misc.set_all_seeds(args.seed)
 
-    # Instantiate the data loaders
-    global_rank, data_loader_train, data_loader_val = init_dataloaders(args)
-
-    if global_rank == 0:
-        print("Job dir: {}".format(os.path.dirname(os.path.realpath(__file__))))
-        print("{}".format(args).replace(", ", ",\n"))
-        print("Input args:\n", json.dumps(vars(args), indent=4, sort_keys=True))
-
-    # Load initial model weights
-    model = part_ae.__dict__[args.model_name]()
-    model_without_ddp = model.to(device)
-
-    # Print param count in human readable format
-    print("Model param count: ", misc.count_params(model))
-    if args.distributed:
-        model = torch.nn.parallel.DistributedDataParallel(
-            model,
-            device_ids=[args.gpu],
-            find_unused_parameters=False,
-        )
-        model_without_ddp = model.module
-
-    # Compute and display lr/eff lr, bsize/eff bsize
-    init_lr(args)
-
-    # Loading the optimizer and loss scaler
-    optimizer = torch.optim.AdamW(model_without_ddp.parameters(), lr=args.lr)
-    loss_scaler = NativeScaler()
-
     # Start a new wandb run to track this script
-    print("Global rank: ", global_rank)
-    print("World size: ", misc.get_world_size())
-    if not args.eval and global_rank == 0:
+    print("Global rank: ", args.global_rank)
+    print("World size: ", args.num_tasks)
+    if not args.eval and args.global_rank == 0:
         model_config = {
             "model_name": args.model_name,
             "batch_size": args.batch_size,
@@ -437,11 +413,64 @@ def main(args):
             "warmup_epochs": args.warmup_epochs,
         }
         misc.init_wandb(
-            project_name="part_ae_occ",
+            project_name="part_autoencoder",
             exp_name=args.exp_name,
             model_config=model_config,
             wandb_id=args.wandb_id,
         )
+
+    # Instantiate the data loaders
+    data_loader_train, data_loader_val = init_dataloaders(args)
+
+    if args.global_rank == 0:
+        print("Job dir: {}".format(os.path.dirname(os.path.realpath(__file__))))
+        print("{}".format(args).replace(", ", ",\n"))
+        print("Input args:\n", json.dumps(vars(args), indent=4, sort_keys=True))
+
+    # Load initial model weights
+    model = part_ae.__dict__[args.model_name](args)
+    model_without_ddp = model.to(device)
+
+    # Print param count in human readable format
+    print("Model param count: ", misc.count_params(model))
+    if args.distributed:
+        model = torch.nn.parallel.DistributedDataParallel(
+            model,
+            device_ids=[args.gpu],
+            find_unused_parameters=False,
+        )
+        model_without_ddp = model.module
+
+    # Instantiate gradient monitor
+    if args.gradient_monitoring:
+        # monitor = GradientMonitor(
+        #     model.module,
+        #     threshold=2.0,
+        #     norm_type="L2",
+        #     break_on_nan=True,
+        # )
+        # Initialize monitor with appropriate settings
+        monitor = ActivationMonitor(
+            model,
+            threshold=2.0,
+            norm_type="L2",
+            break_on_nan=True,
+            log_level=logging.INFO,  # Adjust based on needs
+        )
+
+        args.monitor = monitor
+
+    # Compile the model
+    # print("Compiling the model...")
+    # model = torch.compile(model)
+    # print("Compilation done.")
+
+    # Compute and display lr/eff lr, bsize/eff bsize
+    init_lr(args)
+
+    # Loading the optimizer and loss scaler
+    optimizer = torch.optim.AdamW(model_without_ddp.parameters(), lr=args.lr)
+    loss_scaler = NativeScaler()
 
     # Load the model from a checkpoint
     if args.resume:
@@ -461,7 +490,6 @@ def main(args):
         data_loader_train=data_loader_train,
         data_loader_val=data_loader_val,
         optimizer=optimizer,
-        global_rank=global_rank,
         loss_scaler=loss_scaler,
     )
 

@@ -7,34 +7,38 @@ class DummyPartDataset(Dataset):
     def __init__(
         self,
         num_samples=1000,
+        num_part_points=1024,
+        num_queries=2048,
+        num_replicas=1,
         max_parts=5,
-        num_points=1024,
-        num_occ=2048,
-        n_replicas=1,
+        full_parts=False
     ):
         self.num_samples = num_samples
         self.max_parts = max_parts
-        self.num_points = num_points
-        self.num_occ = num_occ
-        self.n_replicas = n_replicas
+        self.num_part_points = num_part_points
+        self.num_queries = num_queries
+        self.num_replicas = num_replicas
 
         # Generate random number of parts for each sample
-        self.part_counts = torch.randint(
-            low=1, high=self.max_parts + 1, size=(self.num_samples,)
-        )
+        if full_parts:
+            self.part_counts = torch.full((self.num_samples,), self.max_parts)
+        else:
+            self.part_counts = torch.randint(
+                low=1, high=self.max_parts + 1, size=(self.num_samples,)
+            )
 
         # Generate random model ids
         self.model_ids = torch.randint(low=0, high=10, size=(self.num_samples,))
 
     def __len__(self):
-        return self.num_samples * self.n_replicas
+        return self.num_samples * self.num_replicas
 
     def __getitem__(self, idx):
         # Get number of parts for this batch
         num_parts = self.part_counts[idx].item()
 
         # Random pointcloud for each part (P x N x 3)
-        part_points = torch.randn(num_parts, self.num_points, 3)
+        part_points = torch.randn(num_parts, self.num_part_points, 3)
 
         # Random bounding boxes (P x 8 x 3)
         centers = torch.randn(num_parts, 1, 3)
@@ -61,8 +65,8 @@ class DummyPartDataset(Dataset):
         part_bbs = (corners.view(1, 8, 3) * dims + centers).float()
 
         # Random occupancy points and labels
-        query_points = torch.randn(self.num_occ, 3)
-        query_labels = torch.randint(0, 2, (self.num_occ,))
+        query_points = torch.randn(self.num_queries, 3)
+        query_labels = torch.randint(0, 2, (self.num_queries,))
 
         return {
             "num_parts": num_parts,
