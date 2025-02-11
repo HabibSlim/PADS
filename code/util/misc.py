@@ -20,7 +20,6 @@ import torch
 import torch.distributed as dist
 import trimesh
 import wandb
-from torch import inf
 from functools import wraps
 from torch_cluster import fps
 import matplotlib.pyplot as plt
@@ -355,6 +354,10 @@ def setup_for_distributed(is_master):
     """
     This function disables printing when not in master process
     """
+    import os
+    import sys
+    import warnings
+
     builtin_print = builtins.print
 
     def print(*args, **kwargs):
@@ -364,6 +367,11 @@ def setup_for_distributed(is_master):
             now = datetime.datetime.now().time()
             builtin_print("[{}] ".format(now), end="")  # print with time stamp
             builtin_print(*args, **kwargs)
+
+    if not is_master:
+        sys.stdout = open(os.devnull, "w")
+        sys.stderr = open(os.devnull, "w")
+        warnings.filterwarnings("ignore")
 
     builtins.print = print
 
@@ -457,15 +465,15 @@ def init_distributed_mode(args):
         world_size=args.world_size,
         rank=args.rank,
     )
-    torch.distributed.barrier()
-    setup_for_distributed(args.rank == 0)
+    torch.distributed.barrier(device_ids=[args.rank])
+    # setup_for_distributed(args.rank == 0)
 
 
 class NativeScalerWithGradNormCount:
     state_dict_key = "amp_scaler"
 
     def __init__(self):
-        self._scaler = torch.cuda.amp.GradScaler()
+        self._scaler = torch.amp.GradScaler()
 
     def __call__(
         self,
@@ -505,7 +513,7 @@ def get_grad_norm_(parameters, norm_type: float = 2.0) -> torch.Tensor:
     if len(parameters) == 0:
         return torch.tensor(0.0)
     device = parameters[0].grad.device
-    if norm_type == inf:
+    if norm_type == float("inf"):
         total_norm = max(p.grad.detach().abs().max().to(device) for p in parameters)
     else:
         total_norm = torch.norm(
@@ -708,6 +716,7 @@ def default(val, d):
     return val if exists(val) else d
 
 
+@torch.compiler.disable(recursive=True)
 def fps_subsample(pc, ratio, return_idx=False):
     """
     Subsample a point cloud using farthest point sampling.
@@ -1045,3 +1054,36 @@ def visualize_bounding_boxes(
         return trimesh.util.concatenate(mesh_list + bb_geometries)
 
     return mesh_list + bb_geometries
+
+
+def gen_dummy_mesh(mesh_file):
+    """
+    Generate a dummy mesh.
+    """
+    import numpy as np
+
+    # Create vertices
+    vertices = np.array(
+        [
+            [0, 0, 0],  # vertex 0
+            [1, 0, 0],  # vertex 1
+            [1, 1, 0],  # vertex 2
+            [0, 1, 0],  # vertex 3
+            [0.5, 0.5, 1],  # vertex 4 (apex)
+        ]
+    )
+
+    # Define faces using vertex indices
+    faces = np.array(
+        [
+            [0, 1, 4],  # triangle 0
+            [1, 2, 4],  # triangle 1
+            [2, 3, 4],  # triangle 2
+            [3, 0, 4],  # triangle 3
+            [0, 2, 1],  # triangle 4
+            [0, 3, 2],  # triangle 5
+        ]
+    )
+    mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
+    mesh.export(mesh_file)
+    return mesh_file

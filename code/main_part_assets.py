@@ -157,7 +157,6 @@ def get_args_parser():
         default=0.2,
         help="Scale/part drop invariance loss weight",
     )
-
     # Dataset parameters
     parser.add_argument(
         "--data_path",
@@ -165,12 +164,7 @@ def get_args_parser():
         type=str,
         help="Dataset path",
     )
-    parser.add_argument(
-        "--overfit",
-        action="store_true",
-        default=False,
-        help="Overfit to a single batch to debug",
-    )
+
     parser.add_argument(
         "--category_name",
         type=str,
@@ -194,26 +188,6 @@ def get_args_parser():
         "--encoder_checkpoint",
         type=str,
         help="Path to the encoder checkpoint",
-    )
-
-    # Checkpointing parameters
-    parser.add_argument(
-        "--output_dir",
-        default="./output/",
-        help="Path where to save, empty for no saving",
-    )
-    parser.add_argument("--resume", default="", help="Resume from checkpoint")
-    parser.add_argument(
-        "--resume_weights",
-        action="store_true",
-        default=False,
-        help="Only resume weights, not optimizer state",
-    )
-    parser.add_argument(
-        "--resume_full_weights",
-        action="store_true",
-        default=False,
-        help="Resume the full model weights with the EDM wrapper",
     )
 
     parser.add_argument(
@@ -247,6 +221,10 @@ def get_args_parser():
     parser.add_argument(
         "--dist_url", default="env://", help="url used to set up distributed training"
     )
+
+    # ================
+    # ================
+    # ================
 
     return parser
 
@@ -423,6 +401,9 @@ def main(args):
         print("Job dir: {}".format(os.path.dirname(os.path.realpath(__file__))))
         print("{}".format(args).replace(", ", ",\n"))
         print("Input args:\n", json.dumps(vars(args), indent=4, sort_keys=True))
+
+    # ==========================
+    # ==========================
 
     # Load initial model weights
     model = dm.__dict__[args.model_name](

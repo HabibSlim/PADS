@@ -158,8 +158,6 @@ def main(args):
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    cudnn.benchmark = True
-
     dataset_train = build_shape_surface_occupancy_dataset("train", args=args)
     dataset_val = build_shape_surface_occupancy_dataset("val", args=args)
 

@@ -39,13 +39,13 @@ def batch_slices(total, batch_size):
         start = end
 
 
-def get_grid(grid_density=128):
+def get_grid(grid_density=128, grid_range=1.0):
     """
     Get a 3D grid of points.
     """
-    x = np.linspace(-1, 1, grid_density + 1)
-    y = np.linspace(-1, 1, grid_density + 1)
-    z = np.linspace(-1, 1, grid_density + 1)
+    x = np.linspace(-grid_range, grid_range, grid_density + 1)
+    y = np.linspace(-grid_range, grid_range, grid_density + 1)
+    z = np.linspace(-grid_range, grid_range, grid_density + 1)
     xv, yv, zv = np.meshgrid(x, y, z)
     grid = (
         torch.from_numpy(np.stack([xv, yv, zv]).astype(np.float32))
@@ -106,14 +106,10 @@ def predict_occupancies(ae, latents, point_queries, n_queries):
 
 
 @torch.inference_mode()
-def decode_latents(ae, latent, grid_density=128, batch_size=None, smooth_volume=False):
+def reconstruct_mesh(logits, grid_density=128, batch_size=None, smooth_volume=False):
     """
-    Decode latents to a mesh using marching cubes.
+    Reconstruct a mesh using marching cubes, from precomputed logits.
     """
-    B, N, D = latent.shape
-    assert B == 1, "Batch size must be 1."
-
-    logits = query_latents_grid(ae, latent, grid_density, batch_size)
     volume = (
         logits.view(grid_density + 1, grid_density + 1, grid_density + 1)
         .permute(1, 0, 2)
@@ -127,6 +123,18 @@ def decode_latents(ae, latent, grid_density=128, batch_size=None, smooth_volume=
     verts *= gap
     verts -= 1
     return CUDAMesh(verts, faces)
+
+
+@torch.inference_mode()
+def decode_latents(ae, latent, grid_density=128, batch_size=None, smooth_volume=False):
+    """
+    Decode latents to a mesh using marching cubes.
+    """
+    B, N, D = latent.shape
+    assert B == 1, "Batch size must be 1."
+
+    logits = query_latents_grid(ae, latent, grid_density, batch_size)
+    return reconstruct_mesh(logits, grid_density, batch_size, smooth_volume)
 
 
 @torch.inference_mode()
