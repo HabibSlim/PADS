@@ -5,6 +5,7 @@ import torch.distributed as dist
 import math
 from typing import Iterator, List, Optional, TypeVar
 from collections import defaultdict
+import warnings
 
 T_co = TypeVar("T_co", covariant=True)
 
@@ -33,6 +34,7 @@ class DistributedGroupBatchSampler(Sampler[T_co]):
         shuffle: bool = True,
         seed: int = 0,
         drop_last: bool = False,
+        print_warning: bool = False,
     ) -> None:
         if len(group_ids) == 0:
             raise ValueError("group_ids cannot be empty")
@@ -52,6 +54,7 @@ class DistributedGroupBatchSampler(Sampler[T_co]):
                 f"Invalid rank {rank}, rank should be in the interval [0, {num_replicas - 1}]"
             )
 
+        self.print_warning = print_warning
         self.group_ids = np.asarray(group_ids)
         self.batch_size = batch_size
         self.num_replicas = num_replicas
@@ -80,9 +83,7 @@ class DistributedGroupBatchSampler(Sampler[T_co]):
         total_batches = 0
         for indices in self.group_to_samples.values():
             num_samples = len(indices)
-            if num_samples < self.batch_size:
-                import warnings
-
+            if num_samples < self.batch_size and self.print_warning:
                 warnings.warn(
                     f"Found group with {num_samples} samples, less than batch_size ({self.batch_size})"
                 )
@@ -210,6 +211,7 @@ class ShardedGroupBatchSampler(Sampler[T_co]):
         shuffle: bool = True,
         seed: int = 0,
         drop_last: bool = False,
+        print_warning: bool = False,
     ) -> None:
         if len(group_ids) == 0:
             raise ValueError("group_ids cannot be empty")
@@ -231,6 +233,7 @@ class ShardedGroupBatchSampler(Sampler[T_co]):
                 f"Invalid rank {rank}, rank should be in the interval [0, {num_replicas - 1}]"
             )
 
+        self.print_warning = print_warning
         self.group_ids = np.asarray(group_ids)
         self.batch_size = batch_size
         self.split = split
@@ -281,9 +284,7 @@ class ShardedGroupBatchSampler(Sampler[T_co]):
         total_batches = 0
         for indices in self.group_to_samples.values():
             num_samples = len(indices)
-            if num_samples < self.batch_size:
-                import warnings
-
+            if num_samples < self.batch_size and self.print_warning:
                 warnings.warn(
                     f"Found group with {num_samples} samples, less than batch_size ({self.batch_size})"
                 )

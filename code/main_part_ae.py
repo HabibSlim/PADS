@@ -99,6 +99,12 @@ def get_args_parser():
         default=2048,
         help="Number of query points for occupancy prediction",
     )
+    parser.add_argument(
+        "--grid_density",
+        type=int,
+        default=64,
+        help="Number of sampled points for each part",
+    )
 
     # Start/End epoch
     parser.add_argument(
@@ -318,7 +324,7 @@ def init_dataloaders(args):
     """
     if args.debug_run and not args.use_hdf5:
         dataset = DummyPartDataset(
-            num_samples=169958,
+            num_samples=80000,
             num_part_points=args.n_part_points,
             num_queries=args.n_query_points,
             num_replicas=args.num_tasks,
@@ -337,7 +343,10 @@ def init_dataloaders(args):
             num_queries=args.n_query_points,
             num_part_points=args.n_part_points,
         )
-        print("Using PartOccupancyDataset with %d train samples" % len(dataset))
+        print(
+            "Using PartOccupancyDataset with %d train samples"
+            % (len(dataset) * args.num_tasks)
+        )
 
     # Initialize the samplers
     sampler_train = ShardedGroupBatchSampler(
@@ -353,7 +362,7 @@ def init_dataloaders(args):
     sampler_val = ShardedGroupBatchSampler(
         group_ids=dataset.part_counts,
         split="val",
-        batch_size=args.batch_size,
+        batch_size=2,
         num_replicas=args.num_tasks,
         rank=args.global_rank,
         shuffle=True,
@@ -506,5 +515,4 @@ if __name__ == "__main__":
     args = args.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    args.grid_density = 32 if args.debug_run else 256
     main(args)

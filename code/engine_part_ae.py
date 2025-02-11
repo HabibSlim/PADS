@@ -6,6 +6,7 @@ import math
 import sys
 
 import torch
+import torch.distributed as dist
 import util.misc as misc
 import util.s2vs as s2vs
 import util.lr_sched as lr_sched
@@ -29,6 +30,28 @@ def compute_metrics(outputs, labels, threshold):
 
     iou = intersection * 1.0 / union
     iou = iou.mean()
+
+    # Print raw values
+    print("Outputs shape:", outputs.shape)
+    print("Labels shape:", labels.shape)
+    print("Sample outputs:", outputs[0, :10])
+    print("Sample labels:", labels[0, :10])
+
+    # Check thresholding
+    print("Predictions before threshold:", outputs[0, :10])
+    print("Unique outputs values:", torch.unique(outputs))
+    print("Predictions after threshold:", pred[0, :10])
+    print("Unique prediction values:", torch.unique(pred))
+    print("Unique label values:", torch.unique(labels))
+
+    # Debug IOU components
+    print("Intersection values:", intersection)
+    print("Union values:", union)
+    print("Raw IOU before mean:", iou)
+
+    # Check for imbalance
+    print("Positive predictions:", (pred == 1).float().mean())
+    print("Positive labels:", (labels == 1).float().mean())
 
     return accuracy, iou
 
@@ -68,6 +91,17 @@ def forward_pass(args, model, data_tuple, criterion):
     vol_outs, near_outs = outputs.chunk(2, dim=1)
     vol_labels, near_labels = occ_labels.chunk(2, dim=1)
 
+    # Show 100 first occupancy points
+    if args.global_rank == 0:
+        vol_points, near_points = occ_points.chunk(2, dim=1)
+        # print("Vol points shape:", occ_points.shape)
+        # print("First 100 occupancy points:", occ_points[0, :100])
+        # print("First 100 occupancy labels:", occ_labels[0, :100])
+        print("First 100 volume points:", vol_points[0, :100])
+        print("First 100 volume labels:", vol_labels[0, :100])
+        print("First 100 near points:", near_points[0, :100])
+        print("First 100 near labels:", near_labels[0, :100])
+
     # Compute the near-surface loss
     loss_near = torch.tensor(0.0).to(device)
     if args.near_weights is not None:
@@ -103,7 +137,13 @@ def forward_pass(args, model, data_tuple, criterion):
     loss_vol = args.vol_weight * criterion(vol_outs, vol_labels)
 
     # Compute metrics for volume samples only
-    acc, iou = compute_metrics(vol_outs, vol_labels, threshold=0.0)
+    if args.global_rank == 0:
+        acc, iou = compute_metrics(vol_outs, vol_labels, threshold=0.0)
+    else:
+        acc, iou = torch.tensor(0.0).to(device), torch.tensor(0.0).to(device)
+
+    dist.barrier()
+    print("Losses:", loss_near, loss_vol, loss_kl)
 
     return {
         "loss_near": loss_near,
@@ -166,6 +206,9 @@ def train_one_epoch(
             )
         except RuntimeError as e:
             print(e)
+            # Print the sampler properties
+            print("Last seen group = ", data_loader.batch_sampler.last_batch_group)
+            print()
             raise
 
         if (data_step + 1) % accum_iter == 0:
@@ -195,8 +238,22 @@ def train_one_epoch(
                 }
             )
 
+        dist.barrier()
+        if args.global_rank == 0 and args.debug_run:
+            print(
+                "Rank [",
+                args.global_rank,
+                "] Step [",
+                data_step,
+                "]",
+                "Number of Parts [",
+                data_tuple["part_points"].shape[1],
+                "]",
+            )
+
     # Gather the stats from all processes
     metric_logger.synchronize_between_processes()
+    print()
 
     # Print metric logger keys
     print("Averaged stats:", metric_logger)
@@ -299,6 +356,13 @@ def evaluate(
 
     assert data_seen, "No data seen in evaluation loop"
 
+    # Gather the stats from all processes
+    metric_logger.synchronize_between_processes()
+
+    # Print metric logger keys
+    print("Validation stats:", metric_logger)
+    torch.cuda.empty_cache()
+
     # Also extract occupancy predictions for visualization
     if args.global_rank == 0 and epoch % 10 == 0:
         with torch.no_grad():
@@ -330,12 +394,6 @@ def evaluate(
                         ),
                     }
                 )
-
-    # Gather the stats from all processes
-    metric_logger.synchronize_between_processes()
-
-    # Print metric logger keys
-    print("Validation stats:", metric_logger)
 
     # Log validation metrics to wandb
     if args.global_rank == 0:

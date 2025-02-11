@@ -167,9 +167,7 @@ def train_one_epoch(
         metric_logger.update(**loss_update)
 
         # Log the losses to wandb
-        if (
-            global_rank == 0
-        ):  # and ((data_step + 1) % accum_iter == 0 or args.debug_run):
+        if global_rank == 0:
             epoch_1000x = int((data_step / len(data_loader) + epoch) * 1000)
             wandb.log(
                 {
@@ -178,9 +176,6 @@ def train_one_epoch(
                     "inv_batch_loss": loss_update["inv_loss"],
                 }
             )
-
-        if args.debug_run:
-            break
 
     assert data_seen, "No data seen in training loop"
 

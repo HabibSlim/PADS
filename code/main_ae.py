@@ -89,7 +89,7 @@ def get_args_parser():
         help="lower lr bound for cyclic schedulers that hit 0",
     )
     parser.add_argument(
-        "--warmup_epochs", type=int, default=40, metavar="N", help="epochs to warmup LR"
+        "--warmup_epochs", type=int, default=0, metavar="N", help="epochs to warmup LR"
     )
 
     # Dataset parameters
