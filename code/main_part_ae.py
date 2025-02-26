@@ -11,22 +11,18 @@ import sys
 import time
 from pathlib import Path
 
-import numpy as np
 import torch
-import torch.backends.cudnn as cudnn
 import wandb
 
 import util.misc as misc
 import models.part_ae as part_ae
 
-from datasets.dummy_datasets import DummyPartDataset, collate_dummy
+from datasets.dummy_datasets import DummyPartDataset
 from datasets.part_occupancies import (
-    PartOccupancyDataset,
     ShardedPartOccupancyDataset,
     collate,
 )
 from datasets.grouped_sampler import (
-    DistributedGroupBatchSampler,
     ShardedGroupBatchSampler,
 )
 from engine_part_ae import evaluate, train_one_epoch
@@ -104,6 +100,26 @@ def get_args_parser():
         type=int,
         default=64,
         help="Number of sampled points for each part",
+    )
+
+    # Data augmentations
+    parser.add_argument(
+        "--random_transform",
+        action="store_true",
+        default=True,
+        help="Enable random transformations for data augmentation",
+    )
+    parser.add_argument(
+        "--rot_angle",
+        type=int,
+        default=15,
+        help="Maximum rotation angle in degrees for random transformations",
+    )
+    parser.add_argument(
+        "--max_scale",
+        type=float,
+        default=1.25,
+        help="Maximum scale factor for random transformations",
     )
 
     # Start/End epoch
@@ -342,6 +358,9 @@ def init_dataloaders(args):
             world_size=args.num_tasks,
             num_queries=args.n_query_points,
             num_part_points=args.n_part_points,
+            random_transform=args.random_transform,
+            rot_angle=args.rot_angle,
+            max_scale=args.max_scale,
         )
         print(
             "Using PartOccupancyDataset with %d train samples"

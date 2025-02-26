@@ -2,7 +2,7 @@ import h5py
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-import torch.distributed as dist
+from util.transforms import random_transformation_matrix
 
 
 class PartOccupancyDataset(Dataset):
@@ -11,6 +11,7 @@ class PartOccupancyDataset(Dataset):
     """
 
     MAX_PART_DROP = 16
+    N_SAMPLING_FNS = 3
 
     def __init__(
         self,
@@ -18,7 +19,9 @@ class PartOccupancyDataset(Dataset):
         hdf5_path,
         num_queries=2048,
         num_part_points=2048,
-        truncate_unit_cube=True,
+        random_transform=False,
+        rot_angle=0.0,
+        max_scale=0.0,
     ):
         """
         Initialize the dataset by loading HDF5 matrices into memory.
@@ -27,14 +30,20 @@ class PartOccupancyDataset(Dataset):
             hdf5_path: Path to the HDF5 file containing the dataset
             num_queries: Number of query points to sample (if None, uses all points)
             num_part_points: Number of points per part (if None, uses all points)
-            truncate_unit_cube: Whether to filter query points to unit cube [-1/2,1/2]^3
+            random_transform: Whether to apply random transformations
+            rot_angle: Maximum rotation angle (applied to all axes) in degrees
+            max_scale: Maximum scale factor (applied to all axes)
         """
 
         # Initialize base attributes
         self.rank = rank
         self.num_queries = num_queries
         self.num_part_points = num_part_points
-        self.truncate_unit_cube = truncate_unit_cube
+
+        # Store transformation parameters
+        self.random_transform = random_transform
+        self.rot_angle = np.radians(rot_angle)
+        self.max_scale = max_scale
 
         # Load and validate HDF5 data
         print("Loading HDF5 data to memory...")
@@ -129,16 +138,55 @@ class PartOccupancyDataset(Dataset):
                     ]
                     self.part_counts += [n_parts - 1]
 
-    def _filter_unit_cube(self, points, labels=None, abs_max=1.0):
+    def _subsample_points(self, p, n_sub_points, labels=None):
         """
-        Filter points to keep only those within the unit cube [-abs_max, abs_max]^3.
+        Subsample points using random sampling with a fixed ratio.
+        Ensures balanced labels (equal 1s and 0s) when labels are provided.
+
+        Args:
+            p: Points array of shape [N, 3]
+            labels: Optional labels array of shape [N]. If provided, indicates query point processing.
+
+        Returns:
+            Subsampled points (and labels if provided)
         """
-        mask = np.all(np.abs(points) <= abs_max, axis=-1)
-        filtered_points = points[mask]
+        p = torch.as_tensor(p)
+
         if labels is not None:
-            filtered_labels = labels[mask]
-            return filtered_points, filtered_labels
-        return filtered_points
+            # Convert labels to tensor if needed
+            labels = torch.as_tensor(labels)
+
+            # Get indices for each class
+            idx_0 = torch.where(labels == 0)[0]
+            idx_1 = torch.where(labels == 1)[0]
+
+            n_points = len(p)
+
+            assert (
+                len(idx_0) == len(idx_1) == n_points // 2
+            ), f"Invalid label distribution: {len(idx_0)} 0s, {len(idx_1)} 1s"
+
+            # Sample equal numbers from each class
+            n_per_class = n_sub_points // 2
+            idx_0 = idx_0[torch.randperm(len(idx_0))[:n_per_class]]
+            idx_1 = idx_1[torch.randperm(len(idx_1))[:n_per_class]]
+
+            # Combine and shuffle indices
+            idx = torch.cat([idx_0, idx_1])
+            idx = idx[torch.randperm(len(idx))]
+
+            p = p[idx]
+            labels = labels[idx]
+
+            assert len(p) == n_sub_points, f"Invalid subsampling length: {len(p)}"
+
+            return p.numpy(), labels.numpy()
+        else:
+            # Part points - just random sampling
+            idx = torch.randperm(len(p))[:n_sub_points]
+            assert len(idx) == n_sub_points, f"Invalid subsampling length: {len(idx)}"
+
+            return p[idx].numpy()
 
     def _subsample_queries(self, query_points, query_labels):
         """
@@ -146,46 +194,96 @@ class PartOccupancyDataset(Dataset):
         """
         # Compute number of points to sample
         n_vol_points = self.num_queries // 2
-        n_near_points = n_vol_points // 4
-
-        query_points_all = []
-        query_labels_all = []
+        n_near_points = n_vol_points // (self.N_SAMPLING_FNS - 1)
 
         # First sample near-surface points
-        for i in range(4):
-            curr_points = query_points[i]
-            curr_labels = query_labels[i]
+        near_points = []
+        near_labels = []
 
-            if self.truncate_unit_cube:
-                curr_points, curr_labels = self._filter_unit_cube(
-                    curr_points, curr_labels, abs_max=0.8
-                )
-
-            indices = np.random.choice(len(curr_points), n_near_points, replace=False)
-            query_points_all.append(curr_points[indices])
-            query_labels_all.append(curr_labels[indices])
-
-        query_points_sub = np.concatenate(query_points_all)
-        query_labels_sub = np.concatenate(query_labels_all)
-
-        # Then sample volume points
-        curr_points = query_points[4]
-        curr_labels = query_labels[4]
-
-        if self.truncate_unit_cube:
-            curr_points, curr_labels = self._filter_unit_cube(
-                curr_points, curr_labels, abs_max=0.8
+        for i in range(self.N_SAMPLING_FNS - 1):
+            sub_points, sub_labels = self._subsample_points(
+                query_points[i], n_near_points, labels=query_labels[i]
             )
+            near_points.append(sub_points)
+            near_labels.append(sub_labels)
 
-        indices = np.random.choice(len(curr_points), n_vol_points, replace=False)
-        vol_points = curr_points[indices]
-        vol_labels = curr_labels[indices]
+        near_points = np.concatenate(near_points)
+        near_labels = np.concatenate(near_labels)
+
+        # First sample volume points
+        vol_points, vol_labels = self._subsample_points(
+            query_points[-1], n_vol_points, labels=query_labels[-1]
+        )
 
         # Combine near-surface and volume points
-        query_points = np.vstack([query_points_sub, vol_points])
-        query_labels = np.hstack([query_labels_sub, vol_labels])
+        query_points = np.vstack([vol_points, near_points])
+        query_labels = np.hstack([vol_labels, near_labels])
 
         return query_points, query_labels
+
+    def _apply_transformation(self, points, transformation_matrix):
+        """
+        Apply transformation matrix to points.
+
+        Args:
+            points: Points array of shape [N, 3]
+            transformation_matrix: 4x4 transformation matrix
+
+        Returns:
+            Transformed points
+        """
+        # Convert to homogeneous coordinates
+        if isinstance(points, torch.Tensor):
+            homogeneous_points = torch.ones(
+                (points.shape[0], 4), dtype=points.dtype, device=points.device
+            )
+            homogeneous_points[:, :3] = points
+
+            # Convert matrix to tensor
+            transformation_matrix = torch.from_numpy(transformation_matrix).to(
+                dtype=points.dtype, device=points.device
+            )
+
+            # Apply transformation
+            transformed_points = torch.matmul(
+                homogeneous_points, transformation_matrix.T
+            )
+
+            # Return to 3D coordinates
+            return transformed_points[:, :3]
+        else:
+            homogeneous_points = np.ones((points.shape[0], 4))
+            homogeneous_points[:, :3] = points
+
+            # Apply transformation
+            transformed_points = np.matmul(homogeneous_points, transformation_matrix.T)
+
+            # Return to 3D coordinates
+            return transformed_points[:, :3]
+
+    def _apply_transformation_to_bbs(self, bbs, transformation_matrix):
+        """
+        Apply transformation matrix to bounding boxes.
+
+        Args:
+            bbs: Bounding boxes array of shape [N_parts, 8, 3]
+            transformation_matrix: 4x4 transformation matrix
+
+        Returns:
+            Transformed bounding boxes
+        """
+        # For each part
+        transformed_bbs = []
+
+        for part_bb in bbs:
+            # Apply transformation to each corner
+            transformed_bb = self._apply_transformation(part_bb, transformation_matrix)
+            transformed_bbs.append(transformed_bb)
+
+        if isinstance(bbs, torch.Tensor):
+            return torch.stack(transformed_bbs)
+        else:
+            return np.stack(transformed_bbs)
 
     def __len__(self):
         return len(self.sample_configs)
@@ -233,9 +331,34 @@ class PartOccupancyDataset(Dataset):
         # Subsample query points
         query_points, query_labels = self._subsample_queries(query_points, query_labels)
 
-        # Subsample part points if specified
+        # Subsample surface part points if specified
         indices = np.random.choice(n_points, self.num_part_points, replace=False)
         part_points = part_points[:, indices]
+
+        # Apply random transformation if enabled
+        if self.random_transform:
+            # Generate random transformation matrix
+            min_scale = (
+                1.0 / self.max_scale,
+                1.0 / self.max_scale,
+                1.0 / self.max_scale,
+            )
+            max_scale = (self.max_scale, self.max_scale, self.max_scale)
+            transform_matrix = random_transformation_matrix(
+                min_scale=min_scale,
+                max_scale=max_scale,
+                max_angle_x=self.rot_angle,
+                max_angle_y=self.rot_angle,
+                max_angle_z=self.rot_angle,
+            )
+
+            # Transform query points
+            query_points = self._apply_transformation(query_points, transform_matrix)
+
+            # Transform part bounding boxes
+            part_bbs = self._apply_transformation_to_bbs(part_bbs, transform_matrix)
+
+            # Note: part_points are NOT transformed as specified
 
         return {
             "part_points": torch.from_numpy(part_points).float(),
@@ -259,14 +382,20 @@ class ShardedPartOccupancyDataset(PartOccupancyDataset):
         world_size,
         num_queries=2048,
         num_part_points=2048,
-        truncate_unit_cube=True,
+        random_transform=False,
+        rot_angle=0.0,
+        max_scale=0.0,
     ):
 
         # Initialize base attributes
         self.rank = rank
         self.num_queries = num_queries
         self.num_part_points = num_part_points
-        self.truncate_unit_cube = truncate_unit_cube
+
+        # Store transformation parameters
+        self.random_transform = random_transform
+        self.rot_angle = np.radians(rot_angle)
+        self.max_scale = max_scale
 
         # Load and validate HDF5 data
         if rank == 0:

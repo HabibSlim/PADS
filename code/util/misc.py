@@ -716,7 +716,7 @@ def default(val, d):
     return val if exists(val) else d
 
 
-@torch.compiler.disable(recursive=True)
+# @torch.compiler.disable(recursive=True)
 def fps_subsample(pc, ratio, return_idx=False):
     """
     Subsample a point cloud using farthest point sampling.

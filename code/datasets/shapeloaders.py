@@ -311,23 +311,34 @@ class CoMPaTSegmentDataset(CoMPaTManifoldDataset):
 
     def get_dropped_parts(self, init=False):
         """
-        Get the list of parts to drop.
+        Get the list of parts to drop, excluding parts with volume smaller than min_part_volume
+        during initialization.
         """
-        # Randomly drop parts
         to_drop = []
+
         if self.random_part_drop:
             if init:
-                n_parts = len(self.original_seg_meshes)
-                self.part_drop_cycle = np.random.permutation(n_parts)
+                # Create a list of valid part indices based on volume threshold
+                valid_parts = []
+                for part_idx, (_, seg_mesh) in enumerate(
+                    self.original_seg_meshes.items()
+                ):
+                    if seg_mesh.volume >= self.min_part_volume:
+                        valid_parts.append(part_idx)
+
+                if not valid_parts:
+                    raise ValueError("No parts meet the minimum volume threshold")
+
+                # Initialize the dropping cycle using only valid parts
+                self.part_drop_cycle = np.random.permutation(valid_parts)
                 self.part_drop_idx = -1
 
+            # Add parts to drop
             for _ in range(self.n_parts_to_drop):
                 self.part_drop_idx = (self.part_drop_idx + 1) % len(
                     self.part_drop_cycle
                 )
                 to_drop.append(self.part_drop_cycle[self.part_drop_idx])
-
-            # print("Dropping parts:", to_drop, "from cycle: ", self.part_drop_cycle)
 
         return to_drop
 
@@ -340,6 +351,7 @@ class CoMPaTSegmentDataset(CoMPaTManifoldDataset):
         if first_load:
             # Load the original mesh and cache it
             self.original_seg_meshes = load_pickle(self.pkl_files[idx])
+            self.model_id = os.path.basename(self.obj_files[idx]).split(".")[0]
 
             # Filter mesh segments which are too small
             if self.remove_small_parts:
@@ -369,8 +381,8 @@ class CoMPaTSegmentDataset(CoMPaTManifoldDataset):
                 if self.random_rotation:
                     rot_angle = np.pi / 16
                 random_mat = random_transformation_matrix(
-                    min_scale=(0.5, 0.5, 0.5),
-                    max_scale=max_scale_vector,
+                    min_scale=(0.8, 0.8, 0.8),
+                    max_scale=(1.2, 1.2, 1.2),
                     min_trans=-max_translation_vector,
                     max_trans=max_translation_vector,
                     max_angle_x=rot_angle,

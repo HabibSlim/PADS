@@ -202,6 +202,10 @@ class CUDAMesh:
     @property
     def vertices(self):
         return self.kaolin_mesh.vertices.unsqueeze(0)
+    
+    @property
+    def device(self):
+        return self.kaolin_mesh.vertices.device
 
 
 def decimate_mesh(mesh, factor):

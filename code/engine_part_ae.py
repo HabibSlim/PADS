@@ -32,26 +32,26 @@ def compute_metrics(outputs, labels, threshold):
     iou = iou.mean()
 
     # Print raw values
-    print("Outputs shape:", outputs.shape)
-    print("Labels shape:", labels.shape)
-    print("Sample outputs:", outputs[0, :10])
-    print("Sample labels:", labels[0, :10])
+    # print("Outputs shape:", outputs.shape)
+    # print("Labels shape:", labels.shape)
+    # print("Sample outputs:", outputs[0, :10])
+    # print("Sample labels:", labels[0, :10])
 
     # Check thresholding
-    print("Predictions before threshold:", outputs[0, :10])
-    print("Unique outputs values:", torch.unique(outputs))
-    print("Predictions after threshold:", pred[0, :10])
-    print("Unique prediction values:", torch.unique(pred))
-    print("Unique label values:", torch.unique(labels))
+    # print("Predictions before threshold:", outputs[0, :10])
+    # print("Unique outputs values:", torch.unique(outputs))
+    # print("Predictions after threshold:", pred[0, :10])
+    # print("Unique prediction values:", torch.unique(pred))
+    # print("Unique label values:", torch.unique(labels))
 
     # Debug IOU components
-    print("Intersection values:", intersection)
-    print("Union values:", union)
-    print("Raw IOU before mean:", iou)
+    # print("Intersection values:", intersection)
+    # print("Union values:", union)
+    # print("Raw IOU before mean:", iou)
 
     # Check for imbalance
-    print("Positive predictions:", (pred == 1).float().mean())
-    print("Positive labels:", (labels == 1).float().mean())
+    # print("Positive predictions:", (pred == 1).float().mean())
+    # print("Positive labels:", (labels == 1).float().mean())
 
     return accuracy, iou
 
@@ -92,15 +92,15 @@ def forward_pass(args, model, data_tuple, criterion):
     vol_labels, near_labels = occ_labels.chunk(2, dim=1)
 
     # Show 100 first occupancy points
-    if args.global_rank == 0:
-        vol_points, near_points = occ_points.chunk(2, dim=1)
-        # print("Vol points shape:", occ_points.shape)
-        # print("First 100 occupancy points:", occ_points[0, :100])
-        # print("First 100 occupancy labels:", occ_labels[0, :100])
-        print("First 100 volume points:", vol_points[0, :100])
-        print("First 100 volume labels:", vol_labels[0, :100])
-        print("First 100 near points:", near_points[0, :100])
-        print("First 100 near labels:", near_labels[0, :100])
+    # if args.global_rank == 0:
+    #     vol_points, near_points = occ_points.chunk(2, dim=1)
+    # print("Vol points shape:", occ_points.shape)
+    # print("First 100 occupancy points:", occ_points[0, :100])
+    # print("First 100 occupancy labels:", occ_labels[0, :100])
+    # print("First 100 volume points:", vol_points[0, :100])
+    # print("First 100 volume labels:", vol_labels[0, :100])
+    # print("First 100 near points:", near_points[0, :100])
+    # print("First 100 near labels:", near_labels[0, :100])
 
     # Compute the near-surface loss
     loss_near = torch.tensor(0.0).to(device)
@@ -108,15 +108,13 @@ def forward_pass(args, model, data_tuple, criterion):
         """
         In this case occupancies are split like follows
         With N the total number of query points
-        [0:N//8], [N//8:N//4], [N//4:3N//8], [3N//8:N//2] : first 4 near surface point clouds
-        these take weights from near_weights array in the same order
-        [N//2, N] : the last 2 far volume point clouds. these take vol_weight
+        these take weights from near_weights array.
         """
         # Compute the near-surface loss
         for (k, near_weight), occ_chunk, occ_labels in zip(
             enumerate(args.near_weights),
-            near_outs.chunk(4, dim=1),
-            near_labels.chunk(4, dim=1),
+            near_outs.chunk(2, dim=1),
+            near_labels.chunk(2, dim=1),
         ):
             loss_near += near_weight * criterion(occ_chunk, occ_labels)
     else:
